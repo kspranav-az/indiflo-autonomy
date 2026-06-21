@@ -64,7 +64,10 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Known Problems (in priority order)
 
-1. **VIO diverges to kilometers**: The IMU-to-camera rotation was wrong. After fixing the `T_cam_imu` inversion, the transform was still mirrored around the optical axis (camera x was set to -IMU x instead of +IMU x). The current `cam_chain.yaml` now maps **IMU x-right → camera x-right**, **IMU y-up → camera y-down**, and horizontal forward → camera z-forward, removing the IMU's ~13° pitch.
+1. **VIO drifts tens of meters in seconds**: Two issues were fixed:
+   - The IMU-to-camera rotation was mirrored (camera x used -IMU x instead of +IMU x).
+   - The ICM-20948 gyroscope was left at its default ±250 dps full-scale range while the ROS node scaled readings as ±1000 dps, making angular-velocity readings **4x too large**.
+   The driver now configures ±1000 dps and the `cam_chain.yaml` transform maps **IMU x-right → camera x-right**, **IMU y-up → camera y-down**, horizontal forward → camera z-forward.
 2. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
 4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
 5. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
