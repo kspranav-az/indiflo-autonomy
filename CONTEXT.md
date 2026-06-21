@@ -64,8 +64,8 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Known Problems (in priority order)
 
-1. **VIO diverges after a few meters**: The latest test initialized, tracked ~4 m, then jumped to (-706, -324, -510) m and crashed. Root cause identified: the `cam_chain.yaml` transform was interpreted as `T_cam_imu`, so the rotation OpenVINS actually used was the **inverse** of the intended IMU→camera rotation. This has been fixed by switching to `T_imu_cam` directly and disabling online calibration.
-2. **IMU mounting assumption may be wrong**: The config assumes the ICM-20948 is mounted x-forward/y-left/z-up (standard ROS body). If the chip is rotated differently, the new transform will still be wrong and VIO will drift. Verify by checking which axis reads ~+9.81 m/s² when the robot is stationary.
+1. **VIO diverges to kilometers**: The IMU-to-camera rotation was wrong. After fixing the `T_cam_imu` inversion, the next run still diverged because the actual chip orientation is **y-up, x-left, z-forward**, not the originally assumed x-forward/y-left/z-up. The `cam_chain.yaml` has been updated to the new rotation.
+2. **IMU/camera module tilt**: Stationary IMU reads `y ≈ +9.4` and `z ≈ +2.15`, so the module is pitched ~13° from vertical. The current transform assumes the camera optical axis is aligned with IMU z (i.e., camera is also pitched). If the camera is actually horizontal while the IMU is tilted on the board, the transform still needs a pitch correction.
 3. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
 4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
 5. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
@@ -78,16 +78,15 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Most Likely Next Steps
 
-1. **Rerun VIO and check for divergence** (immediate):
+1. **Rerun VIO with the new y-up transform** (immediate):
    - Launch `stereo_vio_mapping.launch.py`.
    - Gently translate/rotate the robot/camera until OpenVINS initializes.
    - Watch `/ov/odomimu` (remapped to `/unitree_go2/odom`) for smooth tracking vs divergence.
    - If it still diverges to large coordinates, verify the IMU mounting orientation first.
-2. **Verify IMU mounting** (critical if divergence persists):
-   - Place robot stationary on a level surface.
-   - `ros2 topic echo /imu/data_raw/linear_acceleration` — the axis that reads ~+9.81 is **up**.
-   - Push the robot forward gently — the axis that spikes positive is **forward**.
-   - If up is not +z or forward is not +x in the IMU message, update `T_imu_cam` in `cam_chain.yaml` accordingly.
+2. **Verify IMU axes if divergence persists**:
+   - Run `python3 /workspaces/ros2_ws/check_imu_axes.py`.
+   - Hold still for 2 s, then push forward / left and note which bars spike positive.
+   - The current config assumes: up = +y, forward = +z, left = +x.
 3. **Recalibrate stereo** (biggest quality gain):
    - Retake 15–20 pairs with board filling ~1/3 of frame
    - More angles/distances; hold board perfectly flat
