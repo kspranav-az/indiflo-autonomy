@@ -1,8 +1,8 @@
 %YAML:1.0
 
 # IMPORTANT: T_imu_cam below assumes the IMU is mounted with
-#   x-forward, y-left, z-up (standard ROS IMU / body convention)
-# relative to the robot body.
+#   x-left, y-up, z-forward
+# relative to the robot body / camera module.
 # Camera optical frame is x-right, y-down, z-forward.
 # If your IMU is mounted differently, update these transforms.
 #
@@ -11,9 +11,9 @@
 
 cam0:
   T_imu_cam:
+    - [-1.000000, 0.000000, 0.000000, 0.000000]
     - [0.000000, -1.000000, 0.000000, 0.000000]
-    - [0.000000, 0.000000, -1.000000, 0.000000]
-    - [1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, 0.000000, 1.000000, 0.000000]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   cam_overlaps: [1]
   camera_model: pinhole
@@ -26,9 +26,9 @@ cam0:
 
 cam1:
   T_imu_cam:
+    - [-0.993965, -0.002395, -0.109672, -0.059408]
     - [-0.015208, -0.987099, 0.159388, -0.002016]
-    - [0.108639, -0.160094, -0.981105, 0.008166]
-    - [0.993965, 0.002395, 0.109672, 0.059408]
+    - [-0.108639, 0.160094, 0.981105, -0.008166]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   T_cn_cnm1:
     - [0.993964942878298, 0.0152082626039648, -0.108638856204908, -0.0599667900084190]
