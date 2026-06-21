@@ -2,9 +2,9 @@
 
 ## Current Focus (continue here)
 
-You are working on the **stereo camera depth estimation stack**. The core algorithm package is at `src/stereo_test/`; the new ROS 2 bridge package is at `src/stereo_depth_ros2/`. The immediate goal is to feed live stereo depth into `map_manager` and `onboard_detector` so the navigation stack can run without a physical LiDAR or RealSense.
+You are working on the **stereo camera depth estimation stack + OpenVINS VIO**. The core algorithm package is at `src/stereo_test/`; the new ROS 2 bridge package is at `src/stereo_depth_ros2/`. The immediate goal is stable visual-inertial odometry from the stereo + IMU pair so the navigation stack can run without a physical LiDAR or RealSense.
 
-The user last asked you to **document accomplishments so a new session can resume from the same place**. The latest state is below.
+The user last asked you to **fix OpenVINS divergence and commit the changes**. The latest state is below.
 
 ---
 
@@ -64,57 +64,37 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Known Problems (in priority order)
 
-1. **OpenVINS requires motion to initialize**: The VIO node will not publish `/ov/odomimu` until it detects enough IMU motion / camera disparity. While stationary you will see `failed static init: no accel jerk detected`. Move the robot/camera gently to initialize.
+1. **VIO stability is unverified on hardware**: The IMU timestamp bug was fixed and the IMU→camera extrinsics were updated to a standard ROS IMU (x-forward/y-left/z-up) → optical camera (x-right/y-down/z-forward) rotation. The next test is to move the robot/camera gently after launch and confirm `/ov/odomimu` tracks motion without diverging.
 2. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
-3. **IMU-to-camera extrinsics are guessed**: assumed identity (IMU at left camera). This should be calibrated for best VIO accuracy.
-4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
-
-2. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
+3. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
+4. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
    - Block matching needs texture; plain walls and smooth skin have almost none.
    - Left/Right auto-exposure differs, which hurts SGBM correlation.
-
-3. **Calibration RMS = 7.6 px** — higher than ideal (< 1 px)
-   - Board was too small in frame, poses not varied enough.
-
-4. **Depth scale / display** — already fixed to use `fx@320×240` in `stereo_sgbm_fast.cpp`.
-
 5. **Depth visualization is inverted** in rqt/RViz: close objects are dark, far objects are bright (raw `32FC1` meters mapped directly). This is correct for downstream nodes but confusing for humans. A `/stereo/depth/display` topic with close=white / far=black or a color map (like `stereo_sgbm_fast`) should be added later.
-
 6. **No post-processing filter** — holes are not filled (WLS filter not implemented).
 
 ---
 
 ## Most Likely Next Steps
 
-1. **Test OpenVINS initialization with camera motion**: launch `stereo_vio_mapping.launch.py`, gently translate/rotate the robot, and confirm `/ov/odomimu` starts publishing.
+1. **Test VIO on hardware** (immediate):
+   - Launch `stereo_vio_mapping.launch.py`.
+   - Gently translate/rotate the robot/camera until OpenVINS initializes.
+   - Watch `/ov/odomimu` (remapped to `/unitree_go2/odom`) for smooth tracking vs divergence.
+   - If it still diverges, inspect `ros2 topic echo /ov/odomimu/pose` and OpenVINS console for gravity/scale errors.
 2. **Recalibrate stereo** (biggest quality gain):
    - Retake 15–20 pairs with board filling ~1/3 of frame
    - More angles/distances; hold board perfectly flat
    - Verify square size with ruler (currently assumes 20 mm)
    - Then rerun `./calibrate_offline 640 480 7 9 <actual_mm>` and copy the new file to `src/stereo_depth_ros2/cfg/stereo_calib.yml` and `src/stereo_depth_ros2/config/openvins/`
-3. **Calibrate IMU-to-camera extrinsics** for OpenVINS (Kalibr or manual measurement).
+3. **Calibrate IMU-to-camera extrinsics** for OpenVINS (Kalibr or manual measurement) if the standard rotation assumption is wrong.
 4. **Tune OpenVINS IMU noise values** using Allan variance plots from a stationary IMU recording.
 5. **Improve depth fill on low texture**:
    - Add a WLS (Weighted Least Squares) filter after SGBM
    - Or test larger block size / different SGBM mode (`MODE_SGBM_3WAY`)
    - Or normalize brightness more aggressively between L/R
-
-2. **Improve calibration** (biggest depth-quality gain):
-   - Retake 15–20 pairs with board filling ~1/3 of frame
-   - More angles/distances; hold board perfectly flat
-   - Verify square size with ruler (currently assumes 20 mm)
-   - Then rerun `./calibrate_offline 640 480 7 9 <actual_mm>` and copy the new file to `src/stereo_depth_ros2/cfg/stereo_calib.yml`
-
-3. **Improve depth fill on low texture**:
-   - Add a WLS (Weighted Least Squares) filter after SGBM
-   - Or test larger block size / different SGBM mode (`MODE_SGBM_3WAY`)
-   - Or normalize brightness more aggressively between L/R
-
-4. **Evaluate moving to CUDA StereoSGM** (`cv::cuda::StereoSGM`) for faster + better results on Jetson
-
-5. **Add a human-friendly depth display topic** (`/stereo/depth/display` or `/stereo/depth/color`) with inverted grayscale or JET color map so close=white/far=black, matching `stereo_sgbm_fast`.
-
-6. **Add colorized depth display** instead of grayscale
+6. **Evaluate moving to CUDA StereoSGM** (`cv::cuda::StereoSGM`) for faster + better results on Jetson
+7. **Add a human-friendly depth display topic** (`/stereo/depth/display` or `/stereo/depth/color`) with inverted grayscale or JET color map so close=white/far=black, matching `stereo_sgbm_fast`.
 
 ---
 
@@ -222,6 +202,15 @@ ros2 topic hz /imu/data_raw
 | `src/ros2/navigation_runner/cfg/map_param.yaml` | Same config, used by `navigation_runner` launch |
 | `src/ros2/navigation_runner/cfg/dynamic_detector_param.yaml` | `onboard_detector` config wired to stereo topics |
 | `src/ros2/onboard_detector/cfg/dynamic_detector_param.yaml` | Same config, used by standalone launch |
+| `src/icm20948_ros2/src/icm20948_node.cpp` | IMU publisher (separate git repo; fixed timestamp bug) |
+
+---
+
+## Git State
+
+- Top-level workspace is a git repo (`/workspaces/ros2_ws`). Committed files: `stereo_depth_ros2`, downstream YAML remaps, `CONTEXT.md`, `.gitignore`.
+- `src/icm20948_ros2/` is a **separate git repo**. The IMU timestamp fix is committed there separately.
+- External dependencies (`src/open_vins/`, `src/ceres-solver/`) are **not** committed in the top-level repo.
 
 ---
 
