@@ -1,0 +1,42 @@
+%YAML:1.0
+
+# IMPORTANT: T_cam_imu below assumes the IMU is mounted with
+#   x-forward, y-left, z-up (standard ROS IMU convention)
+# relative to the robot body.
+# Camera optical frame is x-right, y-down, z-forward.
+# If your IMU is mounted differently, update these transforms.
+
+cam0:
+  T_cam_imu:
+    - [0.000000, -1.000000, 0.000000, 0.000000]
+    - [0.000000, 0.000000, -1.000000, 0.000000]
+    - [1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, 0.000000, 0.000000, 1.000000]
+  cam_overlaps: [1]
+  camera_model: pinhole
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
+  distortion_model: radtan
+  intrinsics: [432.4551801426587, 432.4551801426587, 320.0, 240.0]
+  resolution: [640, 480]
+  rostopic: /camera/left/image_raw
+  timeshift_cam_imu: 0.0
+
+cam1:
+  T_cam_imu:
+    - [-0.108639, -0.993965, -0.015208, -0.059967]
+    - [0.160094, -0.002395, -0.987099, -0.000825]
+    - [0.981105, -0.109672, 0.159388, 0.001818]
+    - [0.000000, 0.000000, 0.000000, 1.000000]
+  T_cn_cnm1:
+    - [0.993964942878298, 0.0152082626039648, -0.108638856204908, -0.0599667900084190]
+    - [0.00239482340933451, 0.987098867993203, 0.160094002471595, -0.000824591778318880]
+    - [0.109672043610849, -0.159387996897839, 0.981105248836797, 0.00181773058655682]
+    - [0.0, 0.0, 0.0, 1.0]
+  cam_overlaps: [0]
+  camera_model: pinhole
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0]
+  distortion_model: radtan
+  intrinsics: [432.4551801426587, 432.4551801426587, 320.0, 240.0]
+  resolution: [640, 480]
+  rostopic: /stereo/right/image_raw
+  timeshift_cam_imu: 0.0

@@ -1,0 +1,30 @@
+# ROS 2 build artifacts
+build/
+install/
+log/
+src/build/
+src/install/
+src/log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# Large generated files
+*.pcd
+*.bag
+*.db3
+
+# OpenVINS / Ceres local build
+src/ceres-solver/build/
+src/ceres-solver/lib/

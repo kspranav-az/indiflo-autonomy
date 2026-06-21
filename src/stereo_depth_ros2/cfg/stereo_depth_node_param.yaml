@@ -1,0 +1,45 @@
+stereo_depth_node:
+  ros__parameters:
+    # Camera IDs and capture resolution
+    left_sensor_id: 1
+    right_sensor_id: 0
+    # Swap left/right before rectification in case calibration was done with opposite assignment
+    swap_cameras: false
+    capture_width: 640
+    capture_height: 480
+    fps: 30
+
+    # Stereo processing resolution = capture * process_scale
+    process_scale: 0.5
+
+    # Calibration file path. Empty string resolves to:
+    #   <package_share>/cfg/stereo_calib.yml, then ./stereo_calib.yml
+    calibration_path: ""
+
+    # Output topics
+    depth_topic: /stereo/depth
+    color_topic: /stereo/left/color
+    left_raw_topic: /camera/left/image_raw
+    right_raw_topic: /stereo/right/image_raw
+    camera_info_topic: /stereo/left/camera_info
+
+    # Frame attached to all published images
+    frame_id: stereo_left_optical_frame
+
+    # What to publish
+    publish_color: true
+    publish_raw: true
+    publish_camera_info: true
+
+    # SGBM parameters
+    sgbm_num_disparities: 96
+    sgbm_block_size: 7
+    sgbm_uniqueness_ratio: 8
+    sgbm_speckle_window_size: 80
+    sgbm_speckle_range: 32
+    sgbm_disp12_max_diff: 1
+    sgbm_pre_filter_cap: 63
+
+    # Depth range
+    depth_min_m: 0.20
+    depth_max_m: 10.0

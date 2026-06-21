@@ -1,0 +1,39 @@
+%YAML:1.0
+
+imu0:
+  T_i_b:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
+  # ICM-20948 conservative continuous-time noise parameters (inflated)
+  # Units: noise_density in m/s^2/sqrt(Hz) and rad/s/sqrt(Hz)
+  #        random_walk in m/s^3/sqrt(Hz) and rad/s^2/sqrt(Hz)
+  accelerometer_noise_density: 0.02
+  accelerometer_random_walk: 0.001
+  gyroscope_noise_density: 0.002
+  gyroscope_random_walk: 0.0001
+  rostopic: /imu/data_raw
+  time_offset: 0.0
+  update_rate: 200
+  model: "kalibr"
+  Tw:
+    - [ 1.0, 0.0, 0.0 ]
+    - [ 0.0, 1.0, 0.0 ]
+    - [ 0.0, 0.0, 1.0 ]
+  R_IMUtoGYRO:
+    - [ 1.0, 0.0, 0.0 ]
+    - [ 0.0, 1.0, 0.0 ]
+    - [ 0.0, 0.0, 1.0 ]
+  Ta:
+    - [ 1.0, 0.0, 0.0 ]
+    - [ 0.0, 1.0, 0.0 ]
+    - [ 0.0, 0.0, 1.0 ]
+  R_IMUtoACC:
+    - [ 1.0, 0.0, 0.0 ]
+    - [ 0.0, 1.0, 0.0 ]
+    - [ 0.0, 0.0, 1.0 ]
+  Tg:
+    - [ 0.0, 0.0, 0.0 ]
+    - [ 0.0, 0.0, 0.0 ]
+    - [ 0.0, 0.0, 0.0 ]
