@@ -64,30 +64,35 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Known Problems (in priority order)
 
-1. **VIO stability is unverified on hardware**: The IMU timestamp bug was fixed and the IMU→camera extrinsics were updated to a standard ROS IMU (x-forward/y-left/z-up) → optical camera (x-right/y-down/z-forward) rotation. The next test is to move the robot/camera gently after launch and confirm `/ov/odomimu` tracks motion without diverging.
-2. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
-3. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
-4. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
+1. **VIO diverges after a few meters**: The latest test initialized, tracked ~4 m, then jumped to (-706, -324, -510) m and crashed. Root cause identified: the `cam_chain.yaml` transform was interpreted as `T_cam_imu`, so the rotation OpenVINS actually used was the **inverse** of the intended IMU→camera rotation. This has been fixed by switching to `T_imu_cam` directly and disabling online calibration.
+2. **IMU mounting assumption may be wrong**: The config assumes the ICM-20948 is mounted x-forward/y-left/z-up (standard ROS body). If the chip is rotated differently, the new transform will still be wrong and VIO will drift. Verify by checking which axis reads ~+9.81 m/s² when the robot is stationary.
+3. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
+4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
+5. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
    - Block matching needs texture; plain walls and smooth skin have almost none.
    - Left/Right auto-exposure differs, which hurts SGBM correlation.
-5. **Depth visualization is inverted** in rqt/RViz: close objects are dark, far objects are bright (raw `32FC1` meters mapped directly). This is correct for downstream nodes but confusing for humans. A `/stereo/depth/display` topic with close=white / far=black or a color map (like `stereo_sgbm_fast`) should be added later.
-6. **No post-processing filter** — holes are not filled (WLS filter not implemented).
+6. **Depth visualization is inverted** in rqt/RViz: close objects are dark, far objects are bright (raw `32FC1` meters mapped directly). This is correct for downstream nodes but confusing for humans. A `/stereo/depth/display` topic with close=white / far=black or a color map (like `stereo_sgbm_fast`) should be added later.
+7. **No post-processing filter** — holes are not filled (WLS filter not implemented).
 
 ---
 
 ## Most Likely Next Steps
 
-1. **Test VIO on hardware** (immediate):
+1. **Rerun VIO and check for divergence** (immediate):
    - Launch `stereo_vio_mapping.launch.py`.
    - Gently translate/rotate the robot/camera until OpenVINS initializes.
    - Watch `/ov/odomimu` (remapped to `/unitree_go2/odom`) for smooth tracking vs divergence.
-   - If it still diverges, inspect `ros2 topic echo /ov/odomimu/pose` and OpenVINS console for gravity/scale errors.
-2. **Recalibrate stereo** (biggest quality gain):
+   - If it still diverges to large coordinates, verify the IMU mounting orientation first.
+2. **Verify IMU mounting** (critical if divergence persists):
+   - Place robot stationary on a level surface.
+   - `ros2 topic echo /imu/data_raw/linear_acceleration` — the axis that reads ~+9.81 is **up**.
+   - Push the robot forward gently — the axis that spikes positive is **forward**.
+   - If up is not +z or forward is not +x in the IMU message, update `T_imu_cam` in `cam_chain.yaml` accordingly.
+3. **Recalibrate stereo** (biggest quality gain):
    - Retake 15–20 pairs with board filling ~1/3 of frame
    - More angles/distances; hold board perfectly flat
    - Verify square size with ruler (currently assumes 20 mm)
    - Then rerun `./calibrate_offline 640 480 7 9 <actual_mm>` and copy the new file to `src/stereo_depth_ros2/cfg/stereo_calib.yml` and `src/stereo_depth_ros2/config/openvins/`
-3. **Calibrate IMU-to-camera extrinsics** for OpenVINS (Kalibr or manual measurement) if the standard rotation assumption is wrong.
 4. **Tune OpenVINS IMU noise values** using Allan variance plots from a stationary IMU recording.
 5. **Improve depth fill on low texture**:
    - Add a WLS (Weighted Least Squares) filter after SGBM
