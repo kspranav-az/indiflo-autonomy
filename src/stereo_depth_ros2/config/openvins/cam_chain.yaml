@@ -1,19 +1,27 @@
 %YAML:1.0
 
-# IMPORTANT: T_imu_cam below assumes the IMU is mounted with
-#   x-left, y-up, z-forward
-# relative to the robot body / camera module.
-# Camera optical frame is x-right, y-down, z-forward.
-# If your IMU is mounted differently, update these transforms.
+# IMPORTANT: T_imu_cam was computed from the observed stationary gravity vector
+# and the forward-motion direction.
+#
+# Observed IMU frame:
+#   y ≈ +9.4  -> UP
+#   z spikes positive when moving forward
+#   x goes negative when moving left
+#
+# This makes the IMU axes approximately:
+#   x = RIGHT, y = UP, z = FORWARD-UP (tilted ~13° from horizontal)
+#
+# Camera optical frame is x-right, y-down, z-forward (horizontal).
+# The rotation below maps the IMU frame to the camera frame, removing the tilt.
 #
 # OpenVINS prints "camX extrinsics" as T_CXtoI (rotation from IMU to camera).
-# We therefore specify T_imu_cam directly so the printed quaternion matches.
+# We therefore specify T_imu_cam directly.
 
 cam0:
   T_imu_cam:
-    - [-1.000000, 0.000000, 0.000000, 0.000000]
-    - [0.000000, -1.000000, 0.000000, 0.000000]
-    - [0.000000, 0.000000, 1.000000, 0.000000]
+    - [0.999774, 0.020737, -0.004742, 0.000000]
+    - [-0.021272, 0.974617, -0.222867, 0.000000]
+    - [-0.000000, 0.222918, 0.974837, 0.000000]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   cam_overlaps: [1]
   camera_model: pinhole
@@ -26,9 +34,9 @@ cam0:
 
 cam1:
   T_imu_cam:
-    - [-0.993965, -0.002395, -0.109672, -0.059408]
-    - [-0.015208, -0.987099, 0.159388, -0.002016]
-    - [-0.108639, 0.160094, 0.981105, -0.008166]
+    - [0.994571, 0.022104, 0.101690, 0.059475]
+    - [0.017891, 0.926312, -0.376331, 0.002521]
+    - [-0.102515, 0.376107, 0.920888, -0.007511]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   T_cn_cnm1:
     - [0.993964942878298, 0.0152082626039648, -0.108638856204908, -0.0599667900084190]
