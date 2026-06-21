@@ -64,9 +64,8 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Known Problems (in priority order)
 
-1. **VIO diverges to kilometers**: The IMU-to-camera rotation was wrong. After fixing the `T_cam_imu` inversion, the next run still diverged because the actual chip orientation is **y-up, x-left, z-forward**, not the originally assumed x-forward/y-left/z-up. The `cam_chain.yaml` has been updated to the new rotation.
-2. **IMU/camera module tilt**: Stationary IMU reads `y ≈ +9.4` and `z ≈ +2.15`, so the module is pitched ~13° from vertical. The current transform assumes the camera optical axis is aligned with IMU z (i.e., camera is also pitched). If the camera is actually horizontal while the IMU is tilted on the board, the transform still needs a pitch correction.
-3. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
+1. **VIO diverges to kilometers**: The IMU-to-camera rotation was wrong. After fixing the `T_cam_imu` inversion, the next run still diverged because the actual chip orientation is **y-up, x-right, z-forward-up** (tilted ~13° from horizontal). The current `cam_chain.yaml` has been updated to a gravity-computed transform that keeps the camera optical axis horizontal while accounting for the IMU tilt.
+2. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
 4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
 5. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
    - Block matching needs texture; plain walls and smooth skin have almost none.
@@ -78,15 +77,15 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Most Likely Next Steps
 
-1. **Rerun VIO with the new y-up transform** (immediate):
+1. **Rerun VIO with the gravity-computed transform** (immediate):
    - Launch `stereo_vio_mapping.launch.py`.
    - Gently translate/rotate the robot/camera until OpenVINS initializes.
    - Watch `/ov/odomimu` (remapped to `/unitree_go2/odom`) for smooth tracking vs divergence.
-   - If it still diverges to large coordinates, verify the IMU mounting orientation first.
+   - The current config assumes: camera horizontal, IMU y-up, IMU z-forward-up tilted ~13°.
 2. **Verify IMU axes if divergence persists**:
-   - Run `python3 /workspaces/ros2_ws/check_imu_axes.py`.
-   - Hold still for 2 s, then push forward / left and note which bars spike positive.
-   - The current config assumes: up = +y, forward = +z, left = +x.
+   - Stationary on a flat surface: `y ≈ +9.4`, `z ≈ +2.15`.
+   - Pushing forward should spike `z` positive.
+   - Pushing left should spike `x` negative (i.e. IMU x points right).
 3. **Recalibrate stereo** (biggest quality gain):
    - Retake 15–20 pairs with board filling ~1/3 of frame
    - More angles/distances; hold board perfectly flat
