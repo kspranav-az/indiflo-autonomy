@@ -64,10 +64,7 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Known Problems (in priority order)
 
-1. **VIO drifts tens of meters in seconds**: Two issues were fixed:
-   - The IMU-to-camera rotation was mirrored (camera x used -IMU x instead of +IMU x).
-   - The ICM-20948 gyroscope was left at its default ±250 dps full-scale range while the ROS node scaled readings as ±1000 dps, making angular-velocity readings **4x too large**.
-   The driver now configures ±1000 dps and the `cam_chain.yaml` transform maps **IMU x-right → camera x-right**, **IMU y-up → camera y-down**, horizontal forward → camera z-forward.
+1. **VIO drift under calibration errors**: The IMU-to-camera rotation was wrong. After fixing the `T_cam_imu` inversion and the gyro scale, the transform was updated to match the physical mounting: **IMU x-left, y-up, z-forward** (camera and IMU tilted together). The current `cam_chain.yaml` uses a 180° rotation around the optical z-axis (`camera x = -IMU x`, `camera y = -IMU y`, `camera z = IMU z`). Accuracy still depends on the stereo calibration RMS = 7.6 px.
 2. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
 4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
 5. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
@@ -80,13 +77,15 @@ The latest `stereo_calib.yml` was generated with:
 
 ## Most Likely Next Steps
 
-1. **Rerun VIO with the gravity-computed transform** (immediate):
+1. **Rerun VIO with the corrected transform** (immediate):
    - Launch `stereo_vio_mapping.launch.py`.
    - Gently translate/rotate the robot/camera until OpenVINS initializes.
    - Watch `/ov/odomimu` (remapped to `/unitree_go2/odom`) for smooth tracking vs divergence.
-   - The current config assumes: camera horizontal, IMU y-up, IMU z-forward-up tilted ~13°.
-2. **Verify IMU axes if divergence persists**:
-   - Stationary on a flat surface: `y ≈ +9.4`, `z ≈ +2.15`.
+   - The current config assumes: **IMU x-left, y-up, z-forward** (camera and IMU tilted together).
+2. **Verify 1-meter tracking accuracy**:
+   - Move the robot exactly 1 m forward and back.
+   - Check `/unitree_go2/odom/pose/pose/position`.
+   - If drift is > ~20 cm over 1 m, recalibrate stereo.
    - Pushing forward should spike `z` positive.
    - Pushing left should spike `x` negative (i.e. IMU x points right).
 3. **Recalibrate stereo** (biggest quality gain):

@@ -115,14 +115,17 @@ The odometry topic is remapped from `/ov/odomimu` to `/unitree_go2/odom` in the 
 
 | Frame | Convention | Notes |
 |-------|------------|-------|
-| IMU / body | `x = right`, `y = up`, `z = forward-up` (tilted ~13° from horizontal) | Determined experimentally from gravity vector and motion tests |
+| IMU / body | `x = left`, `y = up`, `z = forward` (along camera optical axis, tilted together with the camera) | Determined from the physical arrow labels on the chip |
 | Camera optical | `x = right`, `y = down`, `z = forward` (standard OpenCV / OpenVINS) | Defined by the rectified image |
 | World / map | `z-up` (ENU-like) | Set by OpenVINS during initialization |
 
-The transform `T_imu_cam` in `cam_chain.yaml` maps vectors from the IMU frame to the camera frame. It was computed from the observed stationary gravity vector so that:
-- camera `y` (down) aligns with gravity,
-- camera `z` (forward) is horizontal and points in the direction the robot moves when `IMU z` spikes positive,
-- camera `x` (right) is horizontal and perpendicular to the other two axes.
+The transform `T_imu_cam` in `cam_chain.yaml` maps vectors from the IMU frame to the camera frame. For the current mounting it is a simple 180° rotation around the optical z-axis:
+
+- camera `x` = `-IMU x` (right = -left)
+- camera `y` = `-IMU y` (down = -up)
+- camera `z` = `IMU z` (forward)
+
+Because the camera module and the IMU are tilted together, no separate pitch correction is needed.
 
 ---
 
@@ -142,10 +145,10 @@ The transform `T_imu_cam` in `cam_chain.yaml` maps vectors from the IMU frame to
 **Symptom**: Repeated kilometer-scale divergence even after the gyro fix.  
 **Root causes**:
 - The YAML originally gave `T_cam_imu`, but OpenVINS prints and uses `T_CtoI` (the inverse), so the rotation was inverted.
-- The camera x-axis was mirrored: `IMU x` points right, but the transform was mapping it to camera `-x`.
-- The IMU is tilted ~13° relative to the horizontal camera optical axis; the transform must remove that pitch.
+- The camera x-axis sign was wrong: the physical IMU x arrow points **left**, but earlier transforms assumed it pointed right.
+- Earlier gravity-based transforms assumed the camera was horizontal while the IMU was tilted; the actual module has the camera and IMU tilted together.
 
-**Fix**: Switched to `T_imu_cam` in `cam_chain.yaml` and recomputed the rotation from the measured gravity vector and motion tests. Online calibration of camera extrinsics/intrinsics/timeoffset was disabled until the initial guess is close enough.
+**Fix**: Switched to `T_imu_cam` in `cam_chain.yaml` and set it to a 180° rotation around the optical z-axis (`diag(-1, -1, 1)`), matching the physical mounting where `camera x = -IMU x`, `camera y = -IMU y`, and `camera z = IMU z`. Online calibration of camera extrinsics/intrinsics/timeoffset was disabled until the initial guess is close enough.
 
 ### 4.4 Stereo calibration quality is poor
 **Status**: still open.  
