@@ -1,30 +1,23 @@
 %YAML:1.0
 
-# IMPORTANT: T_imu_cam was computed from the observed stationary gravity vector
-# and the left/right motion direction.
-#
-# Observed IMU frame (chip / breakout board):
-#   y ≈ +9.4  -> UP
-#   z spikes positive when moving forward
-#   x goes negative when moving left  -> x points RIGHT
-#
-# Camera optical frame (standard):
-#   x = RIGHT, y = DOWN, z = FORWARD (horizontal)
-#
-# The rotation below maps:
-#   IMU x (right) -> camera x (right)
-#   IMU y (up)    -> camera -y (down)
-#   horizontal forward -> camera z (forward)
-# and removes the ~13° pitch of the IMU relative to the horizontal camera.
+# IMPORTANT: T_imu_cam matches the physical mounting described by the user:
+#   IMU x = left, IMU y = up, IMU z = forward (along the camera optical axis).
+# The camera module is tilted together with the IMU.
+# Camera optical frame is x-right, y-down, z-forward.
+# Therefore:
+#   camera x = -IMU x
+#   camera y = -IMU y
+#   camera z =  IMU z
+# which is a 180-degree rotation around the optical (z) axis.
 #
 # OpenVINS prints "camX extrinsics" as T_CXtoI (rotation from IMU to camera).
 # We therefore specify T_imu_cam directly.
 
 cam0:
   T_imu_cam:
-    - [0.999785, 0.020737, 0.000000, 0.000000]
-    - [-0.020215, 0.974617, -0.222966, 0.000000]
-    - [-0.004624, 0.222918, 0.974826, 0.000000]
+    - [-1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, -1.000000, 0.000000, 0.000000]
+    - [0.000000, 0.000000, 1.000000, 0.000000]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   cam_overlaps: [1]
   camera_model: pinhole
@@ -37,9 +30,9 @@ cam0:
 
 cam1:
   T_imu_cam:
-    - [0.994067, 0.022863, 0.106343, 0.059437]
-    - [0.018952, 0.926299, -0.376312, 0.002584]
-    - [-0.107109, 0.376095, 0.920370, -0.007786]
+    - [-0.993965, -0.002395, -0.109672, -0.059408]
+    - [-0.015208, -0.987099, 0.159388, -0.002016]
+    - [-0.108639, 0.160094, 0.981105, -0.008166]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   T_cn_cnm1:
     - [0.993964942878298, 0.0152082626039648, -0.108638856204908, -0.0599667900084190]
