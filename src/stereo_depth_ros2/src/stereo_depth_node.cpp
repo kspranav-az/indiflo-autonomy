@@ -91,12 +91,14 @@ void StereoDepthNode::declareParameters()
   this->declare_parameter<double>("process_scale", process_scale_);
   this->declare_parameter<std::string>("calibration_path", calibration_path_);
   this->declare_parameter<std::string>("depth_topic", depth_topic_);
+  this->declare_parameter<std::string>("depth_color_topic", depth_color_topic_);
   this->declare_parameter<std::string>("color_topic", color_topic_);
   this->declare_parameter<std::string>("left_raw_topic", left_raw_topic_);
   this->declare_parameter<std::string>("right_raw_topic", right_raw_topic_);
   this->declare_parameter<std::string>("camera_info_topic", camera_info_topic_);
   this->declare_parameter<std::string>("frame_id", frame_id_);
   this->declare_parameter<bool>("publish_color", publish_color_);
+  this->declare_parameter<bool>("publish_depth_color", publish_depth_color_);
   this->declare_parameter<bool>("publish_raw", publish_raw_);
   this->declare_parameter<bool>("publish_camera_info", publish_camera_info_);
 
@@ -120,12 +122,14 @@ void StereoDepthNode::declareParameters()
   this->get_parameter("process_scale", process_scale_);
   this->get_parameter("calibration_path", calibration_path_);
   this->get_parameter("depth_topic", depth_topic_);
+  this->get_parameter("depth_color_topic", depth_color_topic_);
   this->get_parameter("color_topic", color_topic_);
   this->get_parameter("left_raw_topic", left_raw_topic_);
   this->get_parameter("right_raw_topic", right_raw_topic_);
   this->get_parameter("camera_info_topic", camera_info_topic_);
   this->get_parameter("frame_id", frame_id_);
   this->get_parameter("publish_color", publish_color_);
+  this->get_parameter("publish_depth_color", publish_depth_color_);
   this->get_parameter("publish_raw", publish_raw_);
   this->get_parameter("publish_camera_info", publish_camera_info_);
 
@@ -244,6 +248,9 @@ void StereoDepthNode::createPublishers()
   qos.reliable();
 
   depth_pub_ = this->create_publisher<sensor_msgs::msg::Image>(depth_topic_, qos);
+  if (publish_depth_color_) {
+    depth_color_pub_ = this->create_publisher<sensor_msgs::msg::Image>(depth_color_topic_, qos);
+  }
   if (publish_color_) {
     color_pub_ = this->create_publisher<sensor_msgs::msg::Image>(color_topic_, qos);
   }
@@ -262,6 +269,32 @@ void StereoDepthNode::publishDepth(const cv::Mat & depth, const rclcpp::Time & s
   msg->header.stamp = stamp;
   msg->header.frame_id = frame_id_;
   depth_pub_->publish(*msg);
+}
+
+void StereoDepthNode::publishDepthColor(const cv::Mat & depth, const rclcpp::Time & stamp)
+{
+  if (!depth_color_pub_) return;
+
+  // Create an 8-bit visualization: far = dark blue, near = red/yellow
+  cv::Mat depth_clipped;
+  cv::min(depth, depth_max_m_, depth_clipped);
+  cv::max(depth_clipped, depth_min_m_, depth_clipped);
+
+  cv::Mat depth_norm;
+  depth_clipped.convertTo(depth_norm, CV_8UC1, 255.0 / (depth_max_m_ - depth_min_m_),
+                          -depth_min_m_ * 255.0 / (depth_max_m_ - depth_min_m_));
+
+  cv::Mat depth_color;
+  cv::applyColorMap(depth_norm, depth_color, cv::COLORMAP_JET);
+
+  // Color invalid pixels black
+  cv::Mat valid_mask = (depth > depth_min_m_) & (depth < depth_max_m_);
+  depth_color.setTo(cv::Scalar(0, 0, 0), ~valid_mask);
+
+  auto msg = cv_bridge::CvImage(std_msgs::msg::Header(), enc::BGR8, depth_color).toImageMsg();
+  msg->header.stamp = stamp;
+  msg->header.frame_id = frame_id_;
+  depth_color_pub_->publish(*msg);
 }
 
 void StereoDepthNode::publishColor(const cv::Mat & color, const rclcpp::Time & stamp)
@@ -432,6 +465,7 @@ void StereoDepthNode::timerCallback()
   depth_meters.copyTo(depth_output, valid_mask);
 
   publishDepth(depth_output, stamp);
+  publishDepthColor(depth_output, stamp);
 
   processing_ = false;
 }

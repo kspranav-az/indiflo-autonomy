@@ -27,6 +27,7 @@ private:
   void timerCallback();
 
   void publishDepth(const cv::Mat & depth, const rclcpp::Time & stamp);
+  void publishDepthColor(const cv::Mat & depth, const rclcpp::Time & stamp);
   void publishColor(const cv::Mat & color, const rclcpp::Time & stamp);
   void publishRaw(const cv::Mat & left, const cv::Mat & right, const rclcpp::Time & stamp);
   void publishCameraInfo(const rclcpp::Time & stamp);
@@ -43,12 +44,14 @@ private:
   double process_scale_{0.5};
   std::string calibration_path_;
   std::string depth_topic_{"/stereo/depth"};
+  std::string depth_color_topic_{"/stereo/depth/color"};
   std::string color_topic_{"/stereo/left/color"};
   std::string left_raw_topic_{"/camera/left/image_raw"};
   std::string right_raw_topic_{"/stereo/right/image_raw"};
   std::string camera_info_topic_{"/stereo/left/camera_info"};
   std::string frame_id_{"stereo_left_optical_frame"};
   bool publish_color_{true};
+  bool publish_depth_color_{true};
   bool publish_raw_{true};
   bool publish_camera_info_{true};
 
@@ -85,6 +88,7 @@ private:
 
   // Publishers
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_color_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr color_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr left_raw_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr right_raw_pub_;
