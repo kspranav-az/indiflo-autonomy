@@ -4,7 +4,7 @@
 
 You are working on the **stereo camera depth estimation stack + OpenVINS VIO**. The core algorithm package is at `src/stereo_test/`; the new ROS 2 bridge package is at `src/stereo_depth_ros2/`. The immediate goal is stable visual-inertial odometry from the stereo + IMU pair so the navigation stack can run without a physical LiDAR or RealSense.
 
-The user last asked you to **fix OpenVINS divergence and commit the changes**. The latest state is below.
+The user last asked you to **update CONTEXT.md and add a diagnostic log + reset mechanism for IMU/VIO failures**. The latest state is below.
 
 ---
 
@@ -52,54 +52,49 @@ The latest `stereo_calib.yml` was generated with:
 8. ✅ `stereo_sgbm_fast` loads calibration and rectifies frames
 9. ✅ SGBM finds matches on textured targets; depth is metrically scaled
 10. ✅ New `stereo_depth_ros2` package wraps the pipeline in an `rclcpp` node
-11. ✅ Publishes `/stereo/depth` (`TYPE_32FC1` meters), `/stereo/left/color` (`bgr8`), and `/camera/left/image_raw`
+11. ✅ Publishes `/stereo/depth` (`TYPE_32FC1` meters), `/stereo/depth/color` (JET color), `/stereo/left/color` (`bgr8`), and `/camera/left/image_raw`
 12. ✅ Downstream configs in `navigation_runner/cfg/` remapped to stereo topics and 320×240 intrinsics
 13. ✅ `fake_odom_node` publishes `nav_msgs/Odometry` on `/unitree_go2/odom`
-14. ✅ `map_manager` consumes `/stereo/depth` + `/unitree_go2/odom` and publishes occupancy map topics
+14. ✅ `map_manager` consumes `/stereo/depth` + `/unitree_go2/odom` and publishes occupancy map topics (range now 10 m)
 15. ✅ OpenVINS (`ov_msckf`) built with local Ceres solver
 16. ✅ OpenVINS config + launch for stereo + IMU; publishes `/ov/odomimu`, remapped to `/unitree_go2/odom`
 17. ✅ Combined `stereo_vio_mapping.launch.py` launches stereo + IMU + OpenVINS + `map_manager` + RViz
+18. ✅ RViz config updated with camera/depth/VIO image displays and odometry trail
 
 ---
 
 ## Known Problems (in priority order)
 
-1. **VIO drift under calibration errors**: The IMU-to-camera rotation was wrong. After fixing the `T_cam_imu` inversion and the gyro scale, the transform was updated to match the physical mounting: **IMU x-left, y-up, z-forward** (camera and IMU tilted together). The current `cam_chain.yaml` uses a 180° rotation around the optical z-axis (`camera x = -IMU x`, `camera y = -IMU y`, `camera z = IMU z`). Accuracy still depends on the stereo calibration RMS = 7.6 px.
-2. **OpenVINS build is heavy**: required building Ceres from source and disabling OpenVINS test executables to fit in Jetson memory.
-4. **Stereo calibration RMS = 7.6 px**: will degrade VIO until recalibrated.
-5. **Depth is mostly black / sparse on low-texture scenes** (person against plain wall)
-   - Block matching needs texture; plain walls and smooth skin have almost none.
-   - Left/Right auto-exposure differs, which hurts SGBM correlation.
-6. **Depth visualization is inverted** in rqt/RViz: close objects are dark, far objects are bright (raw `32FC1` meters mapped directly). This is correct for downstream nodes but confusing for humans. A `/stereo/depth/display` topic with close=white / far=black or a color map (like `stereo_sgbm_fast`) should be added later.
-7. **No post-processing filter** — holes are not filled (WLS filter not implemented).
+1. **VIO sudden divergence after working briefly**: OpenVINS initializes and tracks for some time, then suddenly the position explodes to hundreds of kilometers while the orientation stays roughly constant. This indicates visual updates are being rejected and the filter is integrating IMU-only, or the stereo calibration / scale is wrong. The gyro scale is now correct, the IMU-to-camera rotation matches the physical mounting, and online calibration is disabled. The most likely remaining causes are:
+   - **Stereo calibration RMS = 7.6 px** — large enough to break feature tracking / triangulation.
+   - **Left/right epipolar geometry mismatch** from poor calibration, causing tracked features to project inconsistently.
+   - **IMU noise values** are now set to datasheet values, but may still be too optimistic / pessimistic.
+   - **Static initialization is fragile**: the filter can initialize with a bad velocity/gravity estimate if the initial motion is too aggressive.
+2. **No diagnostic logging / reset button**: when VIO diverges, the user must Ctrl+C the whole launch. There is no node that monitors `/unitree_go2/odom` and logs/flags divergence, and no service/button to reset OpenVINS without restarting the whole stack.
 
 ---
 
 ## Most Likely Next Steps
 
-1. **Rerun VIO with the corrected transform** (immediate):
-   - Launch `stereo_vio_mapping.launch.py`.
-   - Gently translate/rotate the robot/camera until OpenVINS initializes.
-   - Watch `/ov/odomimu` (remapped to `/unitree_go2/odom`) for smooth tracking vs divergence.
-   - The current config assumes: **IMU x-left, y-up, z-forward** (camera and IMU tilted together).
-2. **Verify 1-meter tracking accuracy**:
+1. **Add a VIO diagnostic / watchdog node** (immediate):
+   - Subscribe to `/unitree_go2/odom`.
+   - If position magnitude exceeds a threshold or position delta between frames is too large, publish a `/vio/diverged` flag and write a concise log line to `/tmp/vio_diagnostics.log`.
+   - Provide a service `/vio/reset` that can be called from RViz or command line.
+2. **Verify 1-meter tracking accuracy before divergence**:
    - Move the robot exactly 1 m forward and back.
    - Check `/unitree_go2/odom/pose/pose/position`.
    - If drift is > ~20 cm over 1 m, recalibrate stereo.
-   - Pushing forward should spike `z` positive.
-   - Pushing left should spike `x` negative (i.e. IMU x points right).
 3. **Recalibrate stereo** (biggest quality gain):
    - Retake 15–20 pairs with board filling ~1/3 of frame
    - More angles/distances; hold board perfectly flat
    - Verify square size with ruler (currently assumes 20 mm)
    - Then rerun `./calibrate_offline 640 480 7 9 <actual_mm>` and copy the new file to `src/stereo_depth_ros2/cfg/stereo_calib.yml` and `src/stereo_depth_ros2/config/openvins/`
-4. **Tune OpenVINS IMU noise values** using Allan variance plots from a stationary IMU recording.
+4. **Tune OpenVINS IMU noise values** using the new `scripts/record_imu_stats.py` stationary recording script.
 5. **Improve depth fill on low texture**:
    - Add a WLS (Weighted Least Squares) filter after SGBM
    - Or test larger block size / different SGBM mode (`MODE_SGBM_3WAY`)
    - Or normalize brightness more aggressively between L/R
 6. **Evaluate moving to CUDA StereoSGM** (`cv::cuda::StereoSGM`) for faster + better results on Jetson
-7. **Add a human-friendly depth display topic** (`/stereo/depth/display` or `/stereo/depth/color`) with inverted grayscale or JET color map so close=white/far=black, matching `stereo_sgbm_fast`.
 
 ---
 
@@ -207,7 +202,8 @@ ros2 topic hz /imu/data_raw
 | `src/ros2/navigation_runner/cfg/map_param.yaml` | Same config, used by `navigation_runner` launch |
 | `src/ros2/navigation_runner/cfg/dynamic_detector_param.yaml` | `onboard_detector` config wired to stereo topics |
 | `src/ros2/onboard_detector/cfg/dynamic_detector_param.yaml` | Same config, used by standalone launch |
-| `src/icm20948_ros2/src/icm20948_node.cpp` | IMU publisher (separate git repo; fixed timestamp bug) |
+| `src/icm20948_ros2/src/icm20948_node.cpp` | IMU publisher (separate git repo; fixed timestamp bug and gyro scale) |
+| `src/stereo_depth_ros2/scripts/record_imu_stats.py` | Stationary IMU statistics recorder for OpenVINS tuning |
 
 ---
 
