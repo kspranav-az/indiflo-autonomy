@@ -68,10 +68,29 @@ def generate_launch_description():
         arguments=['-d', rviz_config_path]
     )
 
+# VIO Watchdog Node
+    vio_watchdog_node = Node(
+        package='stereo_depth_ros2',
+        executable='vio_watchdog.py',
+        name='vio_watchdog',
+        output='screen',
+        parameters=[{
+            'odom_topic': '/unitree_go2/odom',
+            'status_topic': '/vio/status',
+            'diagnostics_path': '/tmp/vio_diagnostics.log',
+            'position_threshold_m': 50.0,
+            'velocity_threshold_m_s': 10.0,
+            'delta_threshold_m': 5.0,
+            'window_size': 10,
+            'log_max_lines': 2000,
+        }]
+    )
+
     return LaunchDescription([
         stereo_depth_node,
         imu_node,
         openvins_node,
         occupancy_map_node,
+        vio_watchdog_node,
         rviz_node,
     ])
