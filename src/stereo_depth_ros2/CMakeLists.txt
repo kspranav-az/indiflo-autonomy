@@ -60,6 +60,14 @@ install(TARGETS stereo_depth_node fake_odom_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Install Python scripts
+ament_python_install_package(${PROJECT_NAME})
+install(PROGRAMS
+  scripts/vio_watchdog.py
+  scripts/record_imu_stats.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Install config
 install(
   DIRECTORY cfg/
