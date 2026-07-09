@@ -195,16 +195,16 @@ Files to update:
 
 ---
 
-## Step 7 — Rebuild and re-test VIO
+## Step 7 — Rebuild and re-test VIO / navigation
 
 **Who:** together
 
 ```bash
 cd /workspaces/ros2_ws
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install --packages-select stereo_depth_ros2
+colcon build --symlink-install --packages-select stereo_depth_ros2 map_manager onboard_detector navigation_runner
 source install/setup.bash
-ros2 launch stereo_depth_ros2 stereo_vio_mapping.launch.py
+ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py
 ```
 
 Test:
@@ -212,6 +212,7 @@ Test:
 1. Keep the rig still → expect `dist ≈ 0.01 m`, no drift.
 2. Move exactly 1 m out and back → compare `/unitree_go2/odom` / `/vio/odom_local`.
 3. Check `/tmp/vio_diagnostics.log` for `HEARTBEAT status=OK` and small `peak` distance.
+4. Publish a `/goal_pose` and verify the navigation node responds (start with a nearby goal).
 
 - [ ] Done
 
@@ -219,27 +220,30 @@ Test:
 
 ## What else is left for the full integration
 
+- ✅ **Navigation stack integration — DONE.** `map_manager`, `onboard_detector`, `safe_action_node`, and `navigation_node` configs are synchronized to the stereo calibration, and `stereo_vio_navigation.launch.py` brings up the full stack.
+
 After Kalibr tuning is verified, the remaining integration items are:
 
 1. **Long-duration robustness test**
-   - Run the full stack for 10–20 minutes of normal use.
+   - Run `stereo_vio_navigation.launch.py` for 10–20 minutes of normal use.
    - Confirm no divergence, no memory growth, and stable map output.
 
 2. **Map-to-odometry validation**
    - Walk a known closed loop (e.g. 2 m out, turn, return to start).
    - Check whether the voxel map and odometry agree at the closing point.
 
-3. **Depth quality / fill improvements** (optional)
+3. **Closed-loop navigation test**
+   - Launch `stereo_vio_navigation.launch.py`.
+   - Publish a `/goal_pose` and verify the robot plans and moves toward it.
+   - Start with the robot on the ground and a nearby goal.
+
+4. **Depth quality / fill improvements** (optional)
    - WLS filter on SGBM disparity, or `cv::cuda::StereoSGM` on Jetson.
    - Better depth = better voxel map, but does not affect VIO.
 
-4. **Higher speed / hardware limits** (optional)
+5. **Higher speed / hardware limits** (optional)
    - Test at faster motion to find where rolling shutter / motion blur breaks tracking.
    - Consider 60 fps capture if CPU allows, or global-shutter cameras if needed.
-
-5. **Navigation stack integration**
-   - Verify `navigation_runner` / `onboard_detector` consume `/unitree_go2/odom` and `/stereo/depth` correctly.
-   - Test obstacle avoidance / path planning with the stereo-generated map.
 
 6. **Documentation / cleanup**
    - Update `CONTEXT.md` with Kalibr results and final tuning values.

@@ -4,7 +4,9 @@
 
 You are working on the **stereo camera depth estimation stack + OpenVINS VIO**. The core algorithm package is at `src/stereo_test/`; the new ROS 2 bridge package is at `src/stereo_depth_ros2/`. The immediate goal is stable visual-inertial odometry from the stereo + IMU pair so the navigation stack can run without a physical LiDAR or RealSense.
 
-**Current status (2026-07-04):** VIO is now **stable at slow / handheld speed with minimal drift**. The stereo pair was recalibrated with a 7×5 / 29.0 mm checkerboard, bringing RMS from ~7.6 px down to **~1.04 px** and the spurious ~11° cam0→cam1 rotation down to **<0.3°**. The depth node now captures from the native 4:3 sensor mode (1640×1232) and scales to 640×480 for processing, which avoids the previous 16:9 distortion. ZUPT remains enabled (`try_zupt: true`) so the filter initializes while held still and clamps velocity / accel bias at rest. The `vio_watchdog.py` node monitors odometry, logs concise divergence/heartbeat lines to `/tmp/vio_diagnostics.log`, and serves `/vio/reset` + `/vio/clear_log`. A `map -> global` static TF was added so RViz/map see cam0/cam1/imu, and the occupancy-map depth intrinsics / IMU-to-depth transform were corrected.
+**Current status (2026-07-04):** VIO is now **stable at slow / handheld speed with minimal drift**, and the **navigation stack is wired end-to-end**. The stereo pair was recalibrated with a 7×5 / 29.0 mm checkerboard, bringing RMS from ~7.6 px down to **~1.04 px** and the spurious ~11° cam0→cam1 rotation down to **<0.3°**. The depth node now captures from the native 4:3 sensor mode (1640×1232) and scales to 640×480 for processing, which avoids the previous 16:9 distortion. ZUPT remains enabled (`try_zupt: true`) so the filter initializes while held still and clamps velocity / accel bias at rest. The `vio_watchdog.py` node monitors odometry, logs concise divergence/heartbeat lines to `/tmp/vio_diagnostics.log`, and serves `/vio/reset` + `/vio/clear_log`. A `map -> global` static TF was added so RViz/map see cam0/cam1/imu, and the occupancy-map depth intrinsics / IMU-to-depth transform were corrected.
+
+The **navigation stack integration** is now complete: `map_manager`, `onboard_detector` (dynamic + YOLO), `safe_action_node`, and `navigation_node` configs are all synchronized to the same stereo calibration and transforms. A single launch file, `stereo_vio_navigation.launch.py`, brings up cameras + IMU + VIO + mapping + dynamic obstacle detection + safe-action checking + navigation + watchdog + RViz.
 
 **Remaining limitation:** drift is now very small but still visible when the device is lifted or moved. When kept perfectly still, ZUPT holds the origin; under motion the residual drift is likely a mix of camera-IMU time-sync, IMU noise parameters, and the remaining calibration/rolling-shutter limits. **Next step: squeeze out the last motion drift via time-sync / IMU tuning / better stationary calibration data**, not another full recalibration.
 
@@ -60,14 +62,15 @@ These values were copied into `src/stereo_depth_ros2/cfg/stereo_calib.yml` and `
 9. ✅ SGBM finds matches on textured targets; depth is metrically scaled
 10. ✅ New `stereo_depth_ros2` package wraps the pipeline in an `rclcpp` node
 11. ✅ Publishes `/stereo/depth` (`TYPE_32FC1` meters), `/stereo/depth/color` (JET color), `/stereo/left/color` (`bgr8`), and `/camera/left/image_raw`
-12. ✅ Downstream configs in `navigation_runner/cfg/` remapped to stereo topics and 320×240 intrinsics
+12. ✅ Downstream configs in `navigation_runner/cfg/` and `onboard_detector/cfg/` remapped to stereo topics and 320×240 intrinsics
 13. ✅ `fake_odom_node` publishes `nav_msgs/Odometry` on `/unitree_go2/odom`
 14. ✅ `map_manager` consumes `/stereo/depth` + `/unitree_go2/odom` and publishes occupancy map topics (range now 10 m)
 15. ✅ OpenVINS (`ov_msckf`) built with local Ceres solver
 16. ✅ OpenVINS config + launch for stereo + IMU; publishes `/ov/odomimu`, remapped to `/unitree_go2/odom`
 17. ✅ Combined `stereo_vio_mapping.launch.py` launches stereo + IMU + OpenVINS + `map_manager` + RViz + VIO watchdog
-18. ✅ RViz config updated with camera/depth/VIO image displays and odometry trail
-19. ✅ `vio_watchdog.py` node monitors `/unitree_go2/odom`, flags divergence, publishes `/vio/status`, republishes origin-relative `/vio/odom_local` + `/vio/pose`, writes concise diagnostics to `/tmp/vio_diagnostics.log` (auto-rotated to 2000 lines), and serves `/vio/reset` + `/vio/clear_log`. Detection is tuned to avoid false positives: **absolute position > 50 m** trips instantly; the velocity check requires **sustained** high velocity (5 consecutive frames) so a single-frame filter/init correction no longer alarms; a warmup skips the init transient; a throttled **HEARTBEAT** line logs current/peak distance so healthy tracking is visible from the log alone; and it auto-logs **RECOVERED**. Verified end-to-end (lone spike ignored, sustained runaway flagged, heartbeat + reset work).
+18. ✅ `stereo_vio_navigation.launch.py` launches the full stack: stereo + IMU + OpenVINS + `map_manager` + `dynamic_detector` + YOLO + `safe_action_node` + `navigation_node` + RViz + VIO watchdog
+19. ✅ RViz config updated with camera/depth/VIO image displays and odometry trail
+20. ✅ `vio_watchdog.py` node monitors `/unitree_go2/odom`, flags divergence, publishes `/vio/status`, republishes origin-relative `/vio/odom_local` + `/vio/pose`, writes concise diagnostics to `/tmp/vio_diagnostics.log` (auto-rotated to 2000 lines), and serves `/vio/reset` + `/vio/clear_log`. Detection is tuned to avoid false positives: **absolute position > 50 m** trips instantly; the velocity check requires **sustained** high velocity (5 consecutive frames) so a single-frame filter/init correction no longer alarms; a warmup skips the init transient; a throttled **HEARTBEAT** line logs current/peak distance so healthy tracking is visible from the log alone; and it auto-logs **RECOVERED**. Verified end-to-end (lone spike ignored, sustained runaway flagged, heartbeat + reset work).
 
 ### Key finding from the 2026-07-04 run
 After recalibration (RMS ~1.04 px, cam0→cam1 rotation <0.3°) the filter now tracks with **sub-meter drift** over slow/handheld motion and no longer produces the catastrophic km-scale runaway. Holding the device still keeps `dist ≈ 0.01 m`; lifting or translating it introduces only small residual drift. The watchdog velocity false-positive was already fixed (sustained-velocity gate), so the remaining drift is real tracking error rather than an alarm artifact. The quality ceiling has shifted from calibration to camera-IMU time-sync and IMU noise/tuning.
@@ -159,11 +162,13 @@ cp src/stereo_test/build/stereo_calib.yml src/stereo_depth_ros2/cfg/stereo_calib
 
 1. ✅ **DONE — VIO watchdog** (`vio_watchdog.py`) and ✅ **DONE — ZUPT enabled** (init-while-still + stationary anti-drift, validated sub-meter tracking).
 2. ✅ **DONE — Stereo recalibration** with 7×5 / 29.0 mm checkerboard. RMS ~1.04 px, cam0→cam1 rotation <0.3°, baseline ~61 mm. New intrinsics/distortion/extrinsics are in `stereo_calib.yml` and `cam_chain.yaml`.
-3. **Camera-IMU time-offset calibration** (top priority for residual motion drift): set `timeshift_cam_imu` / enable `calib_cam_timeoffset`. Even a few ms matters once the device moves.
-4. **IMU noise / bias tuning** from a stationary recording: collect ~30 min of stationary IMU data, run `imu_utils` or Kalibr Allan-variance, and update `src/stereo_depth_ros2/config/openvins/imu_chain.yaml`. This should reduce the slow drift when lifting the device.
-5. **Verify 1-meter accuracy:** move exactly 1 m out and back, check `/unitree_go2/odom` position; expect a few-cm error once time-sync + IMU tuning are in place.
-6. **For higher speed:** see the "Path to higher stability / high-speed VIO" roadmap above (fps, exposure/shutter, compute).
-7. **Depth-fill / quality (optional):** WLS filter after SGBM, or `cv::cuda::StereoSGM` on the Jetson.
+3. ✅ **DONE — Navigation stack integration** (`stereo_vio_navigation.launch.py`). `map_manager`, `onboard_detector`, `safe_action_node`, and `navigation_node` configs are synchronized to the same stereo calibration and transforms.
+4. **Camera-IMU time-offset calibration** (top priority for residual motion drift): set `timeshift_cam_imu` / enable `calib_cam_timeoffset`. Even a few ms matters once the device moves.
+5. **IMU noise / bias tuning** from a stationary recording: collect ~30 min of stationary IMU data, run `imu_utils` or Kalibr Allan-variance, and update `src/stereo_depth_ros2/config/openvins/imu_chain.yaml`. This should reduce the slow drift when lifting the device.
+6. **Closed-loop navigation test:** launch `stereo_vio_navigation.launch.py`, publish a `/goal_pose`, and verify the robot plans and moves toward it without crashes. Start with the robot on the ground and a nearby goal.
+7. **Verify 1-meter accuracy:** move exactly 1 m out and back, check `/unitree_go2/odom` position; expect a few-cm error once time-sync + IMU tuning are in place.
+8. **For higher speed:** see the "Path to higher stability / high-speed VIO" roadmap above (fps, exposure/shutter, compute).
+9. **Depth-fill / quality (optional):** WLS filter after SGBM, or `cv::cuda::StereoSGM` on the Jetson.
 
 ---
 
@@ -226,6 +231,15 @@ ros2 launch stereo_depth_ros2 openvins.launch.py
 # --- Launch full real-odometry mapping stack (now includes VIO watchdog) ---
 ros2 launch stereo_depth_ros2 stereo_vio_mapping.launch.py
 
+# --- Launch full navigation stack (stereo + IMU + VIO + mapping + obstacle detection + navigation) ---
+ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py
+
+# --- Publish a navigation goal (after the stack is running and VIO is initialized) ---
+ros2 topic pub /goal_pose geometry_msgs/PoseStamped '{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}' --once
+
+# --- Emergency stop the navigation node ---
+ros2 topic pub /navigation_emergency_stop std_msgs/Bool '{data: true}' --once
+
 # --- VIO watchdog: monitor status, read diagnostics, reset origin ---
 ros2 topic echo /vio/status                 # OK / DIVERGED
 tail -f /tmp/vio_diagnostics.log            # concise divergence + reset log
@@ -268,15 +282,18 @@ ros2 topic hz /imu/data_raw
 | `src/stereo_depth_ros2/launch/stereo_perception.launch.py` | Launch stereo depth + fake odom + map_manager + RViz |
 | `src/stereo_depth_ros2/launch/openvins.launch.py` | Launch stereo depth + OpenVINS VIO |
 | `src/stereo_depth_ros2/launch/stereo_vio_mapping.launch.py` | Launch stereo + IMU + OpenVINS + map_manager + RViz |
+| `src/stereo_depth_ros2/launch/stereo_vio_navigation.launch.py` | **Full navigation stack** — stereo + IMU + OpenVINS + map_manager + dynamic detector + YOLO + safe action + navigation + RViz |
 | `src/stereo_depth_ros2/config/openvins/estimator_config.yaml` | OpenVINS estimator parameters |
 | `src/stereo_depth_ros2/config/openvins/cam_chain.yaml` | OpenVINS camera intrinsics / extrinsics |
 | `src/stereo_depth_ros2/config/openvins/imu_chain.yaml` | OpenVINS IMU noise parameters |
 | `src/open_vins/` | Cloned OpenVINS source |
 | `src/ceres-solver/` | Cloned Ceres source (local build) |
-| `src/ros2/map_manager/cfg/map_param.yaml` | `map_manager` config wired to `/stereo/depth` |
-| `src/ros2/navigation_runner/cfg/map_param.yaml` | Same config, used by `navigation_runner` launch |
-| `src/ros2/navigation_runner/cfg/dynamic_detector_param.yaml` | `onboard_detector` config wired to stereo topics |
-| `src/ros2/onboard_detector/cfg/dynamic_detector_param.yaml` | Same config, used by standalone launch |
+| `src/ros2/map_manager/cfg/map_param.yaml` | `map_manager` config wired to `/stereo/depth` (updated stereo intrinsics + IMU-to-depth transform) |
+| `src/ros2/navigation_runner/cfg/map_param.yaml` | Same config, used by `navigation_runner` launch (now synchronized) |
+| `src/ros2/navigation_runner/cfg/dynamic_detector_param.yaml` | `onboard_detector` config wired to stereo topics (now synchronized) |
+| `src/ros2/onboard_detector/cfg/dynamic_detector_param.yaml` | Same config, used by standalone launch (now synchronized) |
+| `src/ros2/navigation_runner/cfg/navigation_param.yaml` | Navigation node parameters (`odom_topic`, `cmd_topic`, velocity limit) |
+| `src/ros2/navigation_runner/cfg/safe_action_param.yaml` | Safe-action node parameters (collision horizon, safety distance) |
 | `src/icm20948_ros2/src/icm20948_node.cpp` | IMU publisher (separate git repo; fixed timestamp bug and gyro scale) |
 | `src/stereo_depth_ros2/scripts/record_imu_stats.py` | Stationary IMU statistics recorder for OpenVINS tuning |
 | `src/stereo_depth_ros2/scripts/vio_watchdog.py` | **VIO watchdog** — divergence detection, `/tmp/vio_diagnostics.log`, `/vio/status`, `/vio/reset`, `/vio/clear_log` |
@@ -290,7 +307,7 @@ ros2 topic hz /imu/data_raw
 
 - Top-level workspace is a git repo (`/workspaces/ros2_ws`). Committed files: `stereo_depth_ros2`, downstream YAML remaps, `CONTEXT.md`, `.gitignore`.
 - `src/icm20948_ros2/` is a **separate git repo**. The IMU timestamp fix is committed there separately.
-- `src/ros2/map_manager/` is also a **separate git repo / submodule**. Its `cfg/map_param.yaml` change (occupancy-map intrinsics / transform) must be committed inside that repo, not from the top-level workspace.
+- `src/ros2/` is a **separate git repo / submodule** containing `map_manager`, `navigation_runner`, and `onboard_detector`. Changes to their configs must be committed inside `src/ros2/`, not from the top-level workspace.
 - External dependencies (`src/open_vins/`, `src/ceres-solver/`) are **not** committed in the top-level repo.
 
 ---
