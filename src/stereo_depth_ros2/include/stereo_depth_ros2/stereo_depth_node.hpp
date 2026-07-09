@@ -38,6 +38,8 @@ private:
   int left_sensor_id_{1};
   int right_sensor_id_{0};
   bool swap_cameras_{false};
+  int sensor_width_{1640};   // native 4:3 sensor mode for square pixels
+  int sensor_height_{1232};
   int capture_width_{640};
   int capture_height_{480};
   int fps_{30};

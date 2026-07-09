@@ -15,14 +15,15 @@ namespace stereo_depth_ros2
 
 namespace enc = sensor_msgs::image_encodings;
 
-static std::string buildGStreamerPipeline(int sensor_id, int width, int height, int fps)
+static std::string buildGStreamerPipeline(int sensor_id, int sensor_width, int sensor_height,
+                                           int display_width, int display_height, int fps)
 {
   std::stringstream ss;
   ss << "nvarguscamerasrc sensor-id=" << sensor_id
-     << " ! video/x-raw(memory:NVMM), width=" << width
-     << ", height=" << height << ", format=NV12, framerate=" << fps
-     << "/1 ! nvvidconv flip-method=0 ! video/x-raw, width=" << width
-     << ", height=" << height
+     << " ! video/x-raw(memory:NVMM), width=" << sensor_width
+     << ", height=" << sensor_height << ", format=NV12, framerate=" << fps
+     << "/1 ! nvvidconv flip-method=0 ! video/x-raw, width=" << display_width
+     << ", height=" << display_height
      << ", format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink max-buffers=1 drop=true";
   return ss.str();
 }
@@ -85,6 +86,8 @@ void StereoDepthNode::declareParameters()
   this->declare_parameter<int>("left_sensor_id", left_sensor_id_);
   this->declare_parameter<int>("right_sensor_id", right_sensor_id_);
   this->declare_parameter<bool>("swap_cameras", swap_cameras_);
+  this->declare_parameter<int>("sensor_width", sensor_width_);
+  this->declare_parameter<int>("sensor_height", sensor_height_);
   this->declare_parameter<int>("capture_width", capture_width_);
   this->declare_parameter<int>("capture_height", capture_height_);
   this->declare_parameter<int>("fps", fps_);
@@ -116,6 +119,8 @@ void StereoDepthNode::declareParameters()
   this->get_parameter("left_sensor_id", left_sensor_id_);
   this->get_parameter("right_sensor_id", right_sensor_id_);
   this->get_parameter("swap_cameras", swap_cameras_);
+  this->get_parameter("sensor_width", sensor_width_);
+  this->get_parameter("sensor_height", sensor_height_);
   this->get_parameter("capture_width", capture_width_);
   this->get_parameter("capture_height", capture_height_);
   this->get_parameter("fps", fps_);
@@ -222,7 +227,7 @@ bool StereoDepthNode::loadCalibration()
 
 bool StereoDepthNode::openCameras()
 {
-  cam_left_.open(buildGStreamerPipeline(left_sensor_id_, capture_width_, capture_height_, fps_), cv::CAP_GSTREAMER);
+  cam_left_.open(buildGStreamerPipeline(left_sensor_id_, sensor_width_, sensor_height_, capture_width_, capture_height_, fps_), cv::CAP_GSTREAMER);
   if (!cam_left_.isOpened()) {
     RCLCPP_ERROR(this->get_logger(), "Failed to open left camera (sensor-id=%d)", left_sensor_id_);
     return false;
@@ -231,7 +236,7 @@ bool StereoDepthNode::openCameras()
   // Staggered open prevents nvargus-daemon race on dual open
   usleep(500000);
 
-  cam_right_.open(buildGStreamerPipeline(right_sensor_id_, capture_width_, capture_height_, fps_), cv::CAP_GSTREAMER);
+  cam_right_.open(buildGStreamerPipeline(right_sensor_id_, sensor_width_, sensor_height_, capture_width_, capture_height_, fps_), cv::CAP_GSTREAMER);
   if (!cam_right_.isOpened()) {
     RCLCPP_ERROR(this->get_logger(), "Failed to open right camera (sensor-id=%d)", right_sensor_id_);
     cam_left_.release();

@@ -5,6 +5,10 @@ stereo_depth_node:
     right_sensor_id: 0
     # Swap left/right before rectification in case calibration was done with opposite assignment
     swap_cameras: false
+    # Native 4:3 sensor mode; nvarguscamerasrc scales down to capture resolution.
+    # 1640x1232 keeps pixels square when scaled to 640x480 (unlike 1280x720).
+    sensor_width: 1640
+    sensor_height: 1232
     capture_width: 640
     capture_height: 480
     fps: 30

@@ -86,11 +86,24 @@ def generate_launch_description():
         }]
     )
 
+    # Static transform: RViz/map_manager use the 'map' frame, but OpenVINS
+    # publishes its whole tree (global -> imu -> cam0/cam1) under 'global'.
+    # Publish an identity map -> global so the camera/IMU frames resolve into
+    # 'map' and RViz can show the TF tree, camera frusta, and point clouds.
+    map_to_global_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='map_to_global_tf',
+        arguments=['0', '0', '0', '0', '0', '0', 'map', 'global'],
+        output='screen'
+    )
+
     return LaunchDescription([
         stereo_depth_node,
         imu_node,
         openvins_node,
         occupancy_map_node,
         vio_watchdog_node,
+        map_to_global_tf,
         rviz_node,
     ])

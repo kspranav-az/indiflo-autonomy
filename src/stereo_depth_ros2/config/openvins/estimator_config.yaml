@@ -29,11 +29,15 @@ feat_rep_aruco: "ANCHORED_MSCKF_INVERSE_DEPTH"
 
 # zero velocity update parameters we can use
 # we support either IMU-based or disparity detection.
-try_zupt: false
+# try_zupt=true also sets wait_for_jerk=false internally (see VioManagerHelper.cpp),
+# which lets the filter INITIALIZE WHILE HELD STILL instead of requiring a
+# still-then-move "jerk". It also clamps velocity to zero when stationary,
+# which greatly reduces drift/divergence during pauses.
+try_zupt: true
 zupt_chi2_multipler: 0 # set to 0 for only disp-based
-zupt_max_velocity: 0.1
-zupt_noise_multiplier: 10
-zupt_max_disparity: 0.5 # set to 0 for only imu-based
+zupt_max_velocity: 0.05 # m/s; tighten so slow hand motion is treated as stationary
+zupt_noise_multiplier: 5 # lower noise -> stronger ZUPT correction
+zupt_max_disparity: 0.3 # pixels; lower threshold so only true static passes
 zupt_only_at_beginning: false
 
 # ==================================================================
