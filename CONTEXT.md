@@ -4,9 +4,13 @@
 
 You are working on the **stereo camera depth estimation stack + OpenVINS VIO**. The core algorithm package is at `src/stereo_test/`; the new ROS 2 bridge package is at `src/stereo_depth_ros2/`. The immediate goal is stable visual-inertial odometry from the stereo + IMU pair so the navigation stack can run without a physical LiDAR or RealSense.
 
-**Current status (2026-07-04):** VIO is now **stable at slow / handheld speed with minimal drift**, and the **navigation stack is wired end-to-end**. The stereo pair was recalibrated with a 7×5 / 29.0 mm checkerboard, bringing RMS from ~7.6 px down to **~1.04 px** and the spurious ~11° cam0→cam1 rotation down to **<0.3°**. The depth node now captures from the native 4:3 sensor mode (1640×1232) and scales to 640×480 for processing, which avoids the previous 16:9 distortion. ZUPT remains enabled (`try_zupt: true`) so the filter initializes while held still and clamps velocity / accel bias at rest. The `vio_watchdog.py` node monitors odometry, logs concise divergence/heartbeat lines to `/tmp/vio_diagnostics.log`, and serves `/vio/reset` + `/vio/clear_log`. A `map -> global` static TF was added so RViz/map see cam0/cam1/imu, and the occupancy-map depth intrinsics / IMU-to-depth transform were corrected.
+**Current status (2026-07-09):** VIO is now **stable at slow / handheld speed with minimal drift**, and the **navigation stack is wired end-to-end**. The stereo pair was recalibrated with a 7×5 / 29.0 mm checkerboard, bringing RMS from ~7.6 px down to **~1.04 px** and the spurious ~11° cam0→cam1 rotation down to **<0.3°**. The depth node now captures from the native 4:3 sensor mode (1640×1232) and scales to 640×480 for processing, which avoids the previous 16:9 distortion. ZUPT remains enabled (`try_zupt: true`) so the filter initializes while held still and clamps velocity / accel bias at rest. The `vio_watchdog.py` node monitors odometry, logs concise divergence/heartbeat lines to `/tmp/vio_diagnostics.log`, and serves `/vio/reset` + `/vio/clear_log`. A `map -> global` static TF was added so RViz/map see cam0/cam1/imu, and the occupancy-map depth intrinsics / IMU-to-depth transform were corrected.
 
 The **navigation stack integration** is now complete: `map_manager`, `onboard_detector` (dynamic + YOLO), `safe_action_node`, and `navigation_node` configs are all synchronized to the same stereo calibration and transforms. A single launch file, `stereo_vio_navigation.launch.py`, brings up cameras + IMU + VIO + mapping + dynamic obstacle detection + safe-action checking + navigation + watchdog + RViz. YOLO is disabled by default because `torchvision` is not compatible with the Jetson-optimized PyTorch build; navigation is enabled by default because `torchrl` has been installed successfully.
+
+**Navigation node startup issue (2026-07-09) — RESOLVED:** `navigation_node` was failing at import time due to a `torchrl` API version mismatch (`torchrl==0.13.2` removed `CompositeSpec` and `UnboundedContinuousTensorSpec`). Fixed by aliasing the new `Composite` / `UnboundedContinuous` classes in `src/ros2/navigation_runner/scripts/navigation.py`. Two missing Python deps were also installed: `einops` and `hydra-core`. `navigation_node` now starts successfully, subscribes to `/goal_pose`, and publishes `/unitree_go2/cmd_vel`.
+
+**Closed-loop navigation status (2026-07-09):** After publishing a `/goal_pose`, `navigation_node` outputs a sustained `angular.z ≈ -0.64 rad/s` with `linear.x = 0.0`. This means the policy is commanding a pure in-place rotation (turning toward the goal) but is **not yet translating forward**. This is either (a) the normal alignment phase of the RL policy, or (b) forward motion is being gated by the policy, `safe_action_node`, or obstacle checks. The next step is to verify whether `linear.x` becomes non-zero after the robot finishes rotating toward the goal, and to check `safe_action_node` / raycast if translation remains blocked.
 
 **Remaining limitation:** drift is now very small but still visible when the device is lifted or moved. When kept perfectly still, ZUPT holds the origin; under motion the residual drift is likely a mix of camera-IMU time-sync, IMU noise parameters, and the remaining calibration/rolling-shutter limits. **Next step: squeeze out the last motion drift via time-sync / IMU tuning / better stationary calibration data**, not another full recalibration.
 
@@ -149,12 +153,16 @@ cp src/stereo_test/build/stereo_calib.yml src/stereo_depth_ros2/cfg/stereo_calib
 
 ## Known Problems (in priority order)
 
-1. **Small residual drift while lifting / moving the device** (remaining quality ceiling): with the device perfectly still, ZUPT holds the origin. When lifted or translated, a small drift is still visible. This is no longer caused by calibration (RMS ~1.04 px, rotation <0.3°). Likely contributors are:
+1. **Navigation policy outputs rotation but no forward translation (2026-07-09):** After publishing `/goal_pose`, `navigation_node` publishes sustained `angular.z ≈ -0.64 rad/s` with `linear.x = 0.0`. The robot spins in place toward the goal but does not translate. Possible causes:
+   - Normal RL alignment phase: the policy may first rotate to face the goal, then move forward once aligned.
+   - `safe_action_node` or raycast is blocking forward motion because of perceived obstacles / missing occupancy data.
+   - The trained policy checkpoint / observation normalization causes the network to favor rotation over translation for the current input distribution.
+   - **Next check:** watch `cmd_vel` for 10–20 s after the goal is set; if `linear.x` stays zero, inspect `safe_action_node` logs and `/occupancy_map/raycast` availability.
+2. **Small residual drift while lifting / moving the device** (remaining quality ceiling): with the device perfectly still, ZUPT holds the origin. When lifted or translated, a small drift is still visible. This is no longer caused by calibration (RMS ~1.04 px, rotation <0.3°). Likely contributors are:
    - **Camera-IMU time offset** still set to `timeshift_cam_imu = 0`; a few-ms misalignment becomes significant during motion.
    - **IMU noise/bias parameters** are hand-tuned; a stationary Allan-variance recording would improve them.
    - Possible **rolling-shutter / motion-blur** limits on these CSI sensors.
    **Next levers:** time-sync calibration → IMU noise tuning → only then push speed / exposure.
-2. **No diagnostic logging / reset button**: ✅ **RESOLVED** by `vio_watchdog.py`. It detects divergence, writes concise lines to `/tmp/vio_diagnostics.log` instead of flooding the terminal, and offers `/vio/reset` (set a new local origin without restarting the stack) and `/vio/clear_log`. Note this **detects and mitigates** divergence — it does **not** fix the root cause (now addressed by recalibration, with residual motion drift handled by the items above).
 
 ---
 
@@ -163,12 +171,13 @@ cp src/stereo_test/build/stereo_calib.yml src/stereo_depth_ros2/cfg/stereo_calib
 1. ✅ **DONE — VIO watchdog** (`vio_watchdog.py`) and ✅ **DONE — ZUPT enabled** (init-while-still + stationary anti-drift, validated sub-meter tracking).
 2. ✅ **DONE — Stereo recalibration** with 7×5 / 29.0 mm checkerboard. RMS ~1.04 px, cam0→cam1 rotation <0.3°, baseline ~61 mm. New intrinsics/distortion/extrinsics are in `stereo_calib.yml` and `cam_chain.yaml`.
 3. ✅ **DONE — Navigation stack integration** (`stereo_vio_navigation.launch.py`). `map_manager`, `onboard_detector`, `safe_action_node`, and `navigation_node` configs are synchronized to the same stereo calibration and transforms.
-4. **Camera-IMU time-offset calibration** (top priority for residual motion drift): set `timeshift_cam_imu` / enable `calib_cam_timeoffset`. Even a few ms matters once the device moves.
-5. **IMU noise / bias tuning** from a stationary recording: collect ~30 min of stationary IMU data, run `imu_utils` or Kalibr Allan-variance, and update `src/stereo_depth_ros2/config/openvins/imu_chain.yaml`. This should reduce the slow drift when lifting the device.
-6. **Closed-loop navigation test:** launch `stereo_vio_navigation.launch.py`, publish a `/goal_pose`, and verify the robot plans and moves toward it without crashes. Start with the robot on the ground and a nearby goal.
-7. **Verify 1-meter accuracy:** move exactly 1 m out and back, check `/unitree_go2/odom` position; expect a few-cm error once time-sync + IMU tuning are in place.
-8. **For higher speed:** see the "Path to higher stability / high-speed VIO" roadmap above (fps, exposure/shutter, compute).
-9. **Depth-fill / quality (optional):** WLS filter after SGBM, or `cv::cuda::StereoSGM` on the Jetson.
+4. ✅ **DONE — Navigation node import/version fix (2026-07-09).** Fixed `torchrl` API mismatch and installed missing `einops` + `hydra-core`. `navigation_node` now starts and subscribes to `/goal_pose`.
+5. **Closed-loop navigation behavior (2026-07-09 — in progress):** The robot currently spins in place (`angular.z ≈ -0.64 rad/s`, `linear.x = 0.0`) after receiving a goal. Verify whether it transitions to forward motion after aligning, or whether `safe_action_node`/raycast/policy is blocking translation. Check `/unitree_go2/cmd_vel`, `/unitree_go2/odom`, and `safe_action_node` logs.
+6. **Camera-IMU time-offset calibration** (top priority for residual motion drift): set `timeshift_cam_imu` / enable `calib_cam_timeoffset`. Even a few ms matters once the device moves.
+7. **IMU noise / bias tuning** from a stationary recording: collect ~30 min of stationary IMU data, run `imu_utils` or Kalibr Allan-variance, and update `src/stereo_depth_ros2/config/openvins/imu_chain.yaml`. This should reduce the slow drift when lifting the device.
+8. **Verify 1-meter accuracy:** move exactly 1 m out and back, check `/unitree_go2/odom` position; expect a few-cm error once time-sync + IMU tuning are in place.
+9. **For higher speed:** see the "Path to higher stability / high-speed VIO" roadmap above (fps, exposure/shutter, compute).
+10. **Depth-fill / quality (optional):** WLS filter after SGBM, or `cv::cuda::StereoSGM` on the Jetson.
 
 ---
 
@@ -243,7 +252,17 @@ ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py use_navigation:=fa
 ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py use_yolo:=true
 
 # --- Publish a navigation goal (after the stack is running and VIO is initialized) ---
+# The node will first rotate toward the goal (angular.z non-zero) and then,
+# if the policy/safe-action layer allows, translate forward (linear.x non-zero).
 ros2 topic pub /goal_pose geometry_msgs/PoseStamped '{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}' --once
+
+# --- Monitor what navigation is commanding ---
+ros2 topic echo /unitree_go2/cmd_vel
+
+# --- Monitor safe_action_node / raycast service status ---
+ros2 service list | grep raycast
+ros2 node info /safe_action_node
+ros2 topic echo /safe_action/status  # if available
 
 # --- Emergency stop the navigation node ---
 ros2 topic pub /navigation_emergency_stop std_msgs/Bool '{data: true}' --once
