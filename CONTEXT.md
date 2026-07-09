@@ -6,7 +6,7 @@ You are working on the **stereo camera depth estimation stack + OpenVINS VIO**. 
 
 **Current status (2026-07-04):** VIO is now **stable at slow / handheld speed with minimal drift**, and the **navigation stack is wired end-to-end**. The stereo pair was recalibrated with a 7×5 / 29.0 mm checkerboard, bringing RMS from ~7.6 px down to **~1.04 px** and the spurious ~11° cam0→cam1 rotation down to **<0.3°**. The depth node now captures from the native 4:3 sensor mode (1640×1232) and scales to 640×480 for processing, which avoids the previous 16:9 distortion. ZUPT remains enabled (`try_zupt: true`) so the filter initializes while held still and clamps velocity / accel bias at rest. The `vio_watchdog.py` node monitors odometry, logs concise divergence/heartbeat lines to `/tmp/vio_diagnostics.log`, and serves `/vio/reset` + `/vio/clear_log`. A `map -> global` static TF was added so RViz/map see cam0/cam1/imu, and the occupancy-map depth intrinsics / IMU-to-depth transform were corrected.
 
-The **navigation stack integration** is now complete: `map_manager`, `onboard_detector` (dynamic + YOLO), `safe_action_node`, and `navigation_node` configs are all synchronized to the same stereo calibration and transforms. A single launch file, `stereo_vio_navigation.launch.py`, brings up cameras + IMU + VIO + mapping + dynamic obstacle detection + safe-action checking + navigation + watchdog + RViz.
+The **navigation stack integration** is now complete: `map_manager`, `onboard_detector` (dynamic + YOLO), `safe_action_node`, and `navigation_node` configs are all synchronized to the same stereo calibration and transforms. A single launch file, `stereo_vio_navigation.launch.py`, brings up cameras + IMU + VIO + mapping + dynamic obstacle detection + safe-action checking + navigation + watchdog + RViz. YOLO is disabled by default because `torchvision` is not compatible with the Jetson-optimized PyTorch build; navigation is enabled by default because `torchrl` has been installed successfully.
 
 **Remaining limitation:** drift is now very small but still visible when the device is lifted or moved. When kept perfectly still, ZUPT holds the origin; under motion the residual drift is likely a mix of camera-IMU time-sync, IMU noise parameters, and the remaining calibration/rolling-shutter limits. **Next step: squeeze out the last motion drift via time-sync / IMU tuning / better stationary calibration data**, not another full recalibration.
 
@@ -232,7 +232,15 @@ ros2 launch stereo_depth_ros2 openvins.launch.py
 ros2 launch stereo_depth_ros2 stereo_vio_mapping.launch.py
 
 # --- Launch full navigation stack (stereo + IMU + VIO + mapping + obstacle detection + navigation) ---
+# Default: navigation ON, YOLO OFF (torchvision is not available on this Jetson torch build).
+# Add `use_yolo:=true` only if you have built/installed a Jetson-compatible torchvision.
 ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py
+
+# --- Run only VIO + mapping (disable navigation for debugging) ---
+ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py use_navigation:=false
+
+# --- Run with YOLO (requires torchvision) ---
+ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py use_yolo:=true
 
 # --- Publish a navigation goal (after the stack is running and VIO is initialized) ---
 ros2 topic pub /goal_pose geometry_msgs/PoseStamped '{header: {frame_id: "map"}, pose: {position: {x: 1.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}' --once
@@ -245,6 +253,13 @@ ros2 topic echo /vio/status                 # OK / DIVERGED
 tail -f /tmp/vio_diagnostics.log            # concise divergence + reset log
 ros2 service call /vio/reset std_srvs/srv/Trigger        # set new local origin
 ros2 service call /vio/clear_log std_srvs/srv/Trigger    # truncate the log
+
+# --- Check that all expected nodes are up ---
+ros2 node list | grep -E "stereo_depth|icm20948|ov_msckf|map_manager|dynamic_detector|safe_action|navigation_node|vio_watchdog"
+
+# --- Check navigation stack topic/service wiring ---
+ros2 topic list | grep -E "stereo|occupancy|odom|goal_pose|cmd_vel|yolo|dynamic"
+ros2 service list | grep -E "raycast|get_dynamic_obstacles|get_safe_action"
 
 # --- Verify published topics ---
 ros2 topic list | grep -E "stereo|occupancy|odom|ov|imu"

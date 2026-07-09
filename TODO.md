@@ -255,6 +255,8 @@ After Kalibr tuning is verified, the remaining integration items are:
 
 - Need an AprilGrid target printed.
 - Need access to an x86 PC/VM with Docker.
+- **torchvision is not available on the Jetson torch build**, so the YOLO detector node cannot start. It is disabled by default (`use_yolo:=false`) in `stereo_vio_navigation.launch.py`. To enable YOLO later, install a Jetson-compatible torchvision built against `torch 2.5.0a0+872d972e41.nv24.08`, then launch with `use_yolo:=true`.
+- **torchrl is now installed and imports successfully**, so `navigation_node` can start once its RL checkpoint is present.
 
 ---
 
