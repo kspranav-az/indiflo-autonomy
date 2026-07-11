@@ -236,6 +236,7 @@ After Kalibr tuning is verified, the remaining integration items are:
    - Launch `stereo_vio_navigation.launch.py`.
    - Publish a `/goal_pose` and verify the robot plans and moves toward it.
    - Start with the robot on the ground and a nearby goal.
+   - **2026-07-09 observation:** `navigation_node` now starts and subscribes to `/goal_pose`. After receiving a goal it enters an **alignment phase**: it publishes `angular.z ≈ -0.64 rad/s` with `linear.x = 0.0` until the robot's yaw is within 0.3 rad of the goal direction. Forward motion only begins after this alignment threshold is crossed. If the robot is on a stand or blocked, it will remain in the spin-in-place phase indefinitely. **Next check:** verify yaw changes on `/unitree_go2/odom`; if it converges but translation still does not start, debug `safe_action_node` / RL policy / raycast blocking.
 
 4. **Depth quality / fill improvements** (optional)
    - WLS filter on SGBM disparity, or `cv::cuda::StereoSGM` on Jetson.
@@ -256,8 +257,8 @@ After Kalibr tuning is verified, the remaining integration items are:
 - Need an AprilGrid target printed.
 - Need access to an x86 PC/VM with Docker.
 - **torchvision is not available on the Jetson torch build**, so the YOLO detector node cannot start. It is disabled by default (`use_yolo:=false`) in `stereo_vio_navigation.launch.py`. To enable YOLO later, install a Jetson-compatible torchvision built against `torch 2.5.0a0+872d972e41.nv24.08`, then launch with `use_yolo:=true`.
-- **torchrl is now installed and imports successfully**, so `navigation_node` can start once its RL checkpoint is present.
+- **torchrl/einops/hydra-core are now installed and `navigation_node` starts successfully**, but closed-loop behavior needs validation: the robot currently spins in place to align with the goal before translating. Need to confirm it transitions to forward motion on a real, unblocked robot.
 
 ---
 
-Last updated: 2026-07-09
+Last updated: 2026-07-09 (navigation_node closed-loop observation added)
