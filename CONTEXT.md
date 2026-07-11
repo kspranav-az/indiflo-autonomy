@@ -242,11 +242,12 @@ ros2 launch stereo_depth_ros2 stereo_vio_mapping.launch.py
 
 # --- Launch full navigation stack with Gazebo simulator (Mac provides camera/IMU/depth; Jetson runs VIO + nav) ---
 # 1. On Mac: follow MAC_AGENT_INSTRUCTIONS.md and run the Gazebo simulator.
-# 2. On Jetson:
-export ROS_DOMAIN_ID=42
+# 2. On Jetson: first source the sim environment, then launch.
+source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
 ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py
 
 # --- Launch simulator-only Jetson side without RViz ---
+source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
 ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py use_rviz:=false
 
 # --- Test topic bridging between Mac and Jetson ---
@@ -329,10 +330,14 @@ ros2 topic hz /imu/data_raw
 | `src/stereo_depth_ros2/launch/stereo_vio_mapping.launch.py` | Launch stereo + IMU + OpenVINS + map_manager + RViz |
 | `src/stereo_depth_ros2/launch/stereo_vio_navigation.launch.py` | **Full navigation stack** — stereo + IMU + OpenVINS + map_manager + dynamic detector + YOLO + safe action + navigation + RViz |
 | `src/stereo_depth_ros2/launch/stereo_vio_navigation_sim.launch.py` | **Simulator navigation stack** — same as above but receives camera/IMU/depth from a Gazebo simulator running on a Mac; does not launch `stereo_depth_node` or `icm20948_node` |
-| `src/stereo_depth_ros2/config/openvins_sim/cam_chain.yaml` | Simulator-specific OpenVINS camera chain (ideal pinhole, zero distortion) |
+| `src/stereo_depth_ros2/config/openvins_sim/cam_chain.yaml` | Simulator-specific OpenVINS camera chain (ideal pinhole, zero distortion, **identity T_imu_cam** matching Mac model) |
+| `src/stereo_depth_ros2/cfg/map_param_sim.yaml` | Simulator-specific `map_manager` config (**identity body_to_depth_sensor** matching Mac model) |
 | `src/stereo_depth_ros2/config/openvins_sim/imu_chain.yaml` | Simulator-specific OpenVINS IMU chain (copied from real config) |
 | `src/stereo_depth_ros2/config/openvins_sim/estimator_config.yaml` | Simulator-specific OpenVINS estimator config (references `cam_chain.yaml` / `imu_chain.yaml` in `openvins_sim`) |
+| `scripts/setup_jetson_sim_env.sh` | Source this on the Jetson to set `ROS_DOMAIN_ID=42` and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` |
+| `cyclonedds.xml` | Template CycloneDDS unicast peer config if multicast discovery fails |
 | `MAC_AGENT_INSTRUCTIONS.md` | Standalone instructions for the Mac-side agent setting up Gazebo + ROS 2 Humble + sensor bridges |
+| `SIMULATOR_HANDOFF.md` | Mac agent handoff document with topic contract, frame IDs, launch commands, and known limitations |
 | `src/stereo_depth_ros2/config/openvins/estimator_config.yaml` | OpenVINS estimator parameters |
 | `src/stereo_depth_ros2/config/openvins/cam_chain.yaml` | OpenVINS camera intrinsics / extrinsics |
 | `src/stereo_depth_ros2/config/openvins/imu_chain.yaml` | OpenVINS IMU noise parameters |

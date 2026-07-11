@@ -242,7 +242,19 @@ export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
 
 ---
 
-## 9. Known Limitations & Notes
+## 12. Jetson-side configuration adjustments
+
+Based on the Mac model poses (all sensor links coincident with zero rotation), the Jetson simulator configs were updated:
+
+- `src/stereo_depth_ros2/config/openvins_sim/cam_chain.yaml` — `T_imu_cam` set to **identity** (was 180° z-rotation for the real robot).
+- `src/stereo_depth_ros2/cfg/map_param_sim.yaml` — `body_to_depth_sensor` set to **identity**.
+- `src/stereo_depth_ros2/launch/stereo_vio_navigation_sim.launch.py` — uses the sim OpenVINS config and sim map config.
+- `scripts/setup_jetson_sim_env.sh` — sets `ROS_DOMAIN_ID=42` and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`.
+- `cyclonedds.xml` — template for unicast peer fallback if multicast fails.
+
+---
+
+## 13. Known Limitations & Notes
 
 1. **Shell requirement:** `setup_env.sh` must be sourced from `bash`, not `zsh`. The colcon-generated `setup.bash` files rely on `${BASH_SOURCE[0]}` and break under zsh.
 2. **macOS Gazebo GUI:** Gazebo on macOS cannot run server and GUI in the same process; the launch file runs them separately. Use `gui:=false` for headless operation.

@@ -15,7 +15,8 @@ def generate_launch_description():
 
     # Simulator-specific OpenVINS config (ideal pinhole, zero distortion)
     ov_config_path = os.path.join(stereo_depth_ros2_dir, 'config', 'openvins_sim', 'estimator_config.yaml')
-    map_param_path = os.path.join(map_manager_dir, 'cfg', 'map_param.yaml')
+    # Simulator-specific map_manager config (depth sensor aligned with IMU)
+    map_param_path = os.path.join(stereo_depth_ros2_dir, 'cfg', 'map_param_sim.yaml')
     dynamic_detector_param_path = os.path.join(onboard_detector_dir, 'cfg', 'dynamic_detector_param.yaml')
     yolo_detector_param_path = os.path.join(onboard_detector_dir, 'cfg', 'yolo_detector_param.yaml')
     navigation_param_path = os.path.join(navigation_runner_dir, 'cfg', 'navigation_param.yaml')

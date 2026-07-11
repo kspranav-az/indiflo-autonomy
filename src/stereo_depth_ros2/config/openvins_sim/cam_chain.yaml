@@ -5,12 +5,17 @@
 # so distortion_coeffs are set to zero. Intrinsics, resolution, and extrinsics
 # match the real calibration from cam_chain.yaml so that OpenVINS uses the
 # same camera model as the simulated sensor.
+#
+# IMPORTANT: The Mac simulator model has imu_link, left_camera_link, and
+# depth_camera_link all coincident with zero rotation relative to base_link.
+# Therefore T_imu_cam is identity in this simulator config, unlike the real
+# robot where the camera is rotated 180 deg around the optical axis.
 
 # cam0 = simulated LEFT camera
 cam0:
   T_imu_cam:
-    - [-1.000000, 0.000000, 0.000000, 0.000000]
-    - [0.000000, -1.000000, 0.000000, 0.000000]
+    - [1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, 1.000000, 0.000000, 0.000000]
     - [0.000000, 0.000000, 1.000000, 0.000000]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   cam_overlaps: [1]
@@ -25,8 +30,8 @@ cam0:
 # cam1 = simulated RIGHT camera
 cam1:
   T_imu_cam:
-    - [-1.000000, 0.000000, 0.000000, 0.000000]
-    - [0.000000, -1.000000, 0.000000, 0.000000]
+    - [1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, 1.000000, 0.000000, 0.000000]
     - [0.000000, 0.000000, 1.000000, 0.000000]
     - [0.000000, 0.000000, 0.000000, 1.000000]
   T_cn_cnm1:
