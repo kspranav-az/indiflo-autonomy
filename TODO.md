@@ -224,29 +224,35 @@ Test:
 
 After Kalibr tuning is verified, the remaining integration items are:
 
-1. **Long-duration robustness test**
+1. **Gazebo simulation setup (2026-07-09 — in progress)**
+   - Hybrid simulator: Gazebo runs on a Mac, VIO + navigation runs on the Jetson.
+   - Mac-side instructions: `MAC_AGENT_INSTRUCTIONS.md`.
+   - Jetson-side files: `stereo_vio_navigation_sim.launch.py`, `config/openvins_sim/`.
+   - Next: Mac agent completes Gazebo world + robot + sensor plugins; then run the hybrid test.
+
+2. **Long-duration robustness test**
    - Run `stereo_vio_navigation.launch.py` for 10–20 minutes of normal use.
    - Confirm no divergence, no memory growth, and stable map output.
 
-2. **Map-to-odometry validation**
+3. **Map-to-odometry validation**
    - Walk a known closed loop (e.g. 2 m out, turn, return to start).
    - Check whether the voxel map and odometry agree at the closing point.
 
-3. **Closed-loop navigation test**
+4. **Closed-loop navigation test**
    - Launch `stereo_vio_navigation.launch.py`.
    - Publish a `/goal_pose` and verify the robot plans and moves toward it.
    - Start with the robot on the ground and a nearby goal.
    - **2026-07-09 observation:** `navigation_node` now starts and subscribes to `/goal_pose`. After receiving a goal it enters an **alignment phase**: it publishes `angular.z ≈ -0.64 rad/s` with `linear.x = 0.0` until the robot's yaw is within 0.3 rad of the goal direction. Forward motion only begins after this alignment threshold is crossed. If the robot is on a stand or blocked, it will remain in the spin-in-place phase indefinitely. **Next check:** verify yaw changes on `/unitree_go2/odom`; if it converges but translation still does not start, debug `safe_action_node` / RL policy / raycast blocking.
 
-4. **Depth quality / fill improvements** (optional)
+5. **Depth quality / fill improvements** (optional)
    - WLS filter on SGBM disparity, or `cv::cuda::StereoSGM` on Jetson.
    - Better depth = better voxel map, but does not affect VIO.
 
-5. **Higher speed / hardware limits** (optional)
+6. **Higher speed / hardware limits** (optional)
    - Test at faster motion to find where rolling shutter / motion blur breaks tracking.
    - Consider 60 fps capture if CPU allows, or global-shutter cameras if needed.
 
-6. **Documentation / cleanup**
+7. **Documentation / cleanup**
    - Update `CONTEXT.md` with Kalibr results and final tuning values.
    - Commit the updated configs.
 
@@ -257,8 +263,9 @@ After Kalibr tuning is verified, the remaining integration items are:
 - Need an AprilGrid target printed.
 - Need access to an x86 PC/VM with Docker.
 - **torchvision is not available on the Jetson torch build**, so the YOLO detector node cannot start. It is disabled by default (`use_yolo:=false`) in `stereo_vio_navigation.launch.py`. To enable YOLO later, install a Jetson-compatible torchvision built against `torch 2.5.0a0+872d972e41.nv24.08`, then launch with `use_yolo:=true`.
-- **torchrl/einops/hydra-core are now installed and `navigation_node` starts successfully**, but closed-loop behavior needs validation: the robot currently spins in place to align with the goal before translating. Need to confirm it transitions to forward motion on a real, unblocked robot.
+- **torchrl/einops/hydra-core are now installed and `navigation_node` starts successfully**, but closed-loop behavior needs validation: the robot currently spins in place to align with the goal before translating. Need to confirm it transitions to forward motion on a real, unblocked robot. The Gazebo simulation (once ready) will let us validate this without hardware risk.
+- **Gazebo simulation is blocked on the Mac agent** completing ROS 2 Humble + Gazebo Harmonic + robot/world + sensor bridge setup per `MAC_AGENT_INSTRUCTIONS.md`.
 
 ---
 
-Last updated: 2026-07-09 (navigation_node closed-loop observation added)
+Last updated: 2026-07-09 (simulation setup files added, Mac agent instructions created)

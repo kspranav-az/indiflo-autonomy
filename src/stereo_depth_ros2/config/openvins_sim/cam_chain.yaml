@@ -1,0 +1,44 @@
+%YAML:1.0
+
+# Simulator-specific camera chain for Gazebo.
+# Gazebo camera plugins publish ideal pinhole images (no lens distortion),
+# so distortion_coeffs are set to zero. Intrinsics, resolution, and extrinsics
+# match the real calibration from cam_chain.yaml so that OpenVINS uses the
+# same camera model as the simulated sensor.
+
+# cam0 = simulated LEFT camera
+cam0:
+  T_imu_cam:
+    - [-1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, -1.000000, 0.000000, 0.000000]
+    - [0.000000, 0.000000, 1.000000, 0.000000]
+    - [0.000000, 0.000000, 0.000000, 1.000000]
+  cam_overlaps: [1]
+  camera_model: pinhole
+  distortion_model: radtan
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+  intrinsics: [415.10088390587896, 420.3083743120701, 355.0629519886139, 221.24727741856475]
+  resolution: [640, 480]
+  rostopic: /camera/left/image_raw
+  timeshift_cam_imu: 0.0
+
+# cam1 = simulated RIGHT camera
+cam1:
+  T_imu_cam:
+    - [-1.000000, 0.000000, 0.000000, 0.000000]
+    - [0.000000, -1.000000, 0.000000, 0.000000]
+    - [0.000000, 0.000000, 1.000000, 0.000000]
+    - [0.000000, 0.000000, 0.000000, 1.000000]
+  T_cn_cnm1:
+    - [0.9999999648342447, 0.000106147991258389, -0.000243047767526018, 0.06096922451193947]
+    - [-0.000107247796424433, 0.999989734488182, -0.00452986212364622, -0.0000412574389159956]
+    - [0.000242547767526018, 0.00452983621839189, 0.9999897107069258, -0.00000622095234173209]
+    - [0.0, 0.0, 0.0, 1.0]
+  cam_overlaps: [0]
+  camera_model: pinhole
+  distortion_model: radtan
+  distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+  intrinsics: [418.7519205086613, 419.1075166680335, 316.5721852132701, 264.4844836729405]
+  resolution: [640, 480]
+  rostopic: /stereo/right/image_raw
+  timeshift_cam_imu: 0.0

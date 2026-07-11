@@ -12,7 +12,7 @@ The **navigation stack integration** is now complete: `map_manager`, `onboard_de
 
 **Closed-loop navigation status (2026-07-09):** After publishing a `/goal_pose`, `navigation_node` outputs a sustained `angular.z ≈ -0.64 rad/s` with `linear.x = 0.0`. This means the policy is commanding a pure in-place rotation (turning toward the goal) but is **not yet translating forward**. This is either (a) the normal alignment phase of the RL policy, or (b) forward motion is being gated by the policy, `safe_action_node`, or obstacle checks. The next step is to verify whether `linear.x` becomes non-zero after the robot finishes rotating toward the goal, and to check `safe_action_node` / raycast if translation remains blocked.
 
-**Remaining limitation:** drift is now very small but still visible when the device is lifted or moved. When kept perfectly still, ZUPT holds the origin; under motion the residual drift is likely a mix of camera-IMU time-sync, IMU noise parameters, and the remaining calibration/rolling-shutter limits. **Next step: squeeze out the last motion drift via time-sync / IMU tuning / better stationary calibration data**, not another full recalibration.
+**Simulation setup (2026-07-09) — IN PROGRESS:** To validate the full stack without repeatedly running the real robot, a hybrid simulation is being prepared. Gazebo Harmonic will run natively on a Mac (publishing `/camera/left/image_raw`, `/stereo/right/image_raw`, `/imu/data_raw`, `/stereo/depth`, and subscribing to `/unitree_go2/cmd_vel`), while the real OpenVINS + navigation stack continues to run on the Jetson. ROS 2 DDS bridges the two machines. A Mac-side instruction file (`MAC_AGENT_INSTRUCTIONS.md`) has been created, and a Jetson-side simulator launch file (`stereo_vio_navigation_sim.launch.py`) plus simulator-specific OpenVINS configs (`config/openvins_sim/`) have been added. The next step is for the Mac agent to complete the Gazebo world + robot model, then run the hybrid test.
 
 ---
 
@@ -240,9 +240,20 @@ ros2 launch stereo_depth_ros2 openvins.launch.py
 # --- Launch full real-odometry mapping stack (now includes VIO watchdog) ---
 ros2 launch stereo_depth_ros2 stereo_vio_mapping.launch.py
 
-# --- Launch full navigation stack (stereo + IMU + VIO + mapping + obstacle detection + navigation) ---
-# Default: navigation ON, YOLO OFF (torchvision is not available on this Jetson torch build).
-# Add `use_yolo:=true` only if you have built/installed a Jetson-compatible torchvision.
+# --- Launch full navigation stack with Gazebo simulator (Mac provides camera/IMU/depth; Jetson runs VIO + nav) ---
+# 1. On Mac: follow MAC_AGENT_INSTRUCTIONS.md and run the Gazebo simulator.
+# 2. On Jetson:
+export ROS_DOMAIN_ID=42
+ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py
+
+# --- Launch simulator-only Jetson side without RViz ---
+ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py use_rviz:=false
+
+# --- Test topic bridging between Mac and Jetson ---
+# On Mac:  ros2 topic pub /test std_msgs/String 'data: hello'
+# On Jetson: ros2 topic echo /test
+
+# --- Launch full navigation stack with real cameras + IMU (hardware) ---
 ros2 launch stereo_depth_ros2 stereo_vio_navigation.launch.py
 
 # --- Run only VIO + mapping (disable navigation for debugging) ---
@@ -317,6 +328,11 @@ ros2 topic hz /imu/data_raw
 | `src/stereo_depth_ros2/launch/openvins.launch.py` | Launch stereo depth + OpenVINS VIO |
 | `src/stereo_depth_ros2/launch/stereo_vio_mapping.launch.py` | Launch stereo + IMU + OpenVINS + map_manager + RViz |
 | `src/stereo_depth_ros2/launch/stereo_vio_navigation.launch.py` | **Full navigation stack** — stereo + IMU + OpenVINS + map_manager + dynamic detector + YOLO + safe action + navigation + RViz |
+| `src/stereo_depth_ros2/launch/stereo_vio_navigation_sim.launch.py` | **Simulator navigation stack** — same as above but receives camera/IMU/depth from a Gazebo simulator running on a Mac; does not launch `stereo_depth_node` or `icm20948_node` |
+| `src/stereo_depth_ros2/config/openvins_sim/cam_chain.yaml` | Simulator-specific OpenVINS camera chain (ideal pinhole, zero distortion) |
+| `src/stereo_depth_ros2/config/openvins_sim/imu_chain.yaml` | Simulator-specific OpenVINS IMU chain (copied from real config) |
+| `src/stereo_depth_ros2/config/openvins_sim/estimator_config.yaml` | Simulator-specific OpenVINS estimator config (references `cam_chain.yaml` / `imu_chain.yaml` in `openvins_sim`) |
+| `MAC_AGENT_INSTRUCTIONS.md` | Standalone instructions for the Mac-side agent setting up Gazebo + ROS 2 Humble + sensor bridges |
 | `src/stereo_depth_ros2/config/openvins/estimator_config.yaml` | OpenVINS estimator parameters |
 | `src/stereo_depth_ros2/config/openvins/cam_chain.yaml` | OpenVINS camera intrinsics / extrinsics |
 | `src/stereo_depth_ros2/config/openvins/imu_chain.yaml` | OpenVINS IMU noise parameters |
