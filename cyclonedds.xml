@@ -15,10 +15,10 @@
     </General>
     <Discovery>
       <Peers>
-        <!-- Replace with actual Mac IP -->
-        <Peer address="192.168.1.10"/>
-        <!-- Replace with actual Jetson IP -->
-        <Peer address="192.168.1.20"/>
+        <!-- Mac wired IP -->
+        <Peer address="192.168.55.100"/>
+        <!-- Jetson wired IP -->
+        <Peer address="192.168.55.1"/>
       </Peers>
     </Discovery>
   </Domain>

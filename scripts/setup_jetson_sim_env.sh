@@ -14,10 +14,15 @@ export ROS_DOMAIN_ID=42
 # Clear any previously-set RMW_IMPLEMENTATION so this script always starts
 # from the Jetson default unless explicitly uncommented below.
 unset RMW_IMPLEMENTATION
-# export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-# Optional: uncomment and set CYCLONEDDS_URI if multicast discovery is flaky.
-# export CYCLONEDDS_URI=file:///workspaces/ros2_ws/cyclonedds.xml
+# CycloneDDS peer config for wired Mac <-> Jetson link.
+export CYCLONEDDS_URI=file:///workspaces/ros2_ws/cyclonedds.xml
+
+# Source local rmw_cyclonedds_cpp build if available (apt package is 404).
+if [ -f "$HOME/rmw_ws/install/setup.bash" ]; then
+    source "$HOME/rmw_ws/install/setup.bash"
+fi
 
 echo "Jetson sim environment ready."
 echo "  ROS_DOMAIN_ID=$ROS_DOMAIN_ID"
