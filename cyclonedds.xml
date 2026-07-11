@@ -1,16 +1,16 @@
 <?xml version="1.0"?>
 <!--
-  Fallback CycloneDDS configuration for Jetson ↔ Mac simulator bridging.
-  Copy this file, set the Peer addresses to the Mac and Jetson IPs, then:
-
-    export CYCLONEDDS_URI=file:///workspaces/ros2_ws/cyclonedds.xml
-
-  Use only if multicast discovery does not work across the network.
+  CycloneDDS configuration for Jetson ↔ Mac wired simulator link.
+  Place a matching file on the Mac with the Mac's interface address
+  (e.g. 192.168.55.100) and export CYCLONEDDS_URI.
 -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain id="42">
     <General>
-      <NetworkInterfaceAddress>auto</NetworkInterfaceAddress>
+      <Interfaces>
+        <!-- Jetson wired interface for the simulator link -->
+        <NetworkInterface address="192.168.55.1"/>
+      </Interfaces>
       <AllowMulticast>true</AllowMulticast>
     </General>
     <Discovery>
