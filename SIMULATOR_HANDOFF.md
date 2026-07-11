@@ -150,17 +150,25 @@ ros2 topic echo /camera/left/image_raw
 
 ### 7.1 Required environment on the Jetson
 
-The Jetson must have **ROS 2 Humble** installed and use the same middleware:
+The Jetson must have **ROS 2 Humble** installed. The Mac simulator uses **CycloneDDS**, so ideally the Jetson uses it too:
 
 ```bash
-export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 export ROS_DOMAIN_ID=42   # must match the Mac
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 ```
+
+If `ros-humble-rmw-cyclonedds-cpp` is not available on the Jetson (e.g. apt 404), you can leave `RMW_IMPLEMENTATION` unset and use the Jetson's default RMW. Cross-vendor DDS discovery may work for basic tests but can be unreliable under image load.
 
 Source the Jetson’s own ROS 2 setup:
 
 ```bash
 source /opt/ros/humble/setup.bash   # or wherever Humble is installed
+```
+
+A convenience script is provided:
+
+```bash
+source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
 ```
 
 ### 7.2 Network checklist
