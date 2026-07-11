@@ -10,6 +10,10 @@
 # unreliable under heavy image traffic.
 
 export ROS_DOMAIN_ID=42
+
+# Clear any previously-set RMW_IMPLEMENTATION so this script always starts
+# from the Jetson default unless explicitly uncommented below.
+unset RMW_IMPLEMENTATION
 # export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 # Optional: uncomment and set CYCLONEDDS_URI if multicast discovery is flaky.
@@ -20,7 +24,7 @@ echo "  ROS_DOMAIN_ID=$ROS_DOMAIN_ID"
 if [ -n "$RMW_IMPLEMENTATION" ]; then
     echo "  RMW_IMPLEMENTATION=$RMW_IMPLEMENTATION"
 else
-    echo "  RMW_IMPLEMENTATION=(default - CycloneDDS install pending)"
+    echo "  RMW_IMPLEMENTATION=(Jetson default)"
 fi
 echo ""
 echo "Run the sim stack with:"
