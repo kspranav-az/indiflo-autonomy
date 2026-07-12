@@ -1,24 +1,22 @@
 <?xml version="1.0"?>
 <!--
   CycloneDDS configuration for Jetson ↔ Mac wired simulator link.
-  Place a matching file on the Mac with the Mac's interface address
-  (e.g. 192.168.55.100) and export CYCLONEDDS_URI.
+  Multicast discovery is disabled because the point-to-point USB/Ethernet
+  link between Mac and Jetson does not forward DDS SPDP multicast. Discovery
+  uses explicit unicast peers only.
 -->
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain id="42">
     <General>
       <Interfaces>
-        <!-- Jetson wired interface for the simulator link -->
-        <NetworkInterface name="l4tbr0"/>
+        <NetworkInterface address="192.168.55.1"/>
       </Interfaces>
       <AllowMulticast>false</AllowMulticast>
+      <ParticipantIndex>auto</ParticipantIndex>
     </General>
     <Discovery>
       <Peers>
-        <!-- Mac wired IP -->
         <Peer address="192.168.55.100"/>
-        <!-- Jetson wired IP -->
-        <Peer address="192.168.55.1"/>
       </Peers>
     </Discovery>
   </Domain>
