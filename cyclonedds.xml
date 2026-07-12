@@ -9,7 +9,7 @@
     <General>
       <Interfaces>
         <!-- Jetson wired interface for the simulator link -->
-        <NetworkInterface address="192.168.55.1"/>
+        <NetworkInterface name="l4tbr0"/>
       </Interfaces>
       <AllowMulticast>false</AllowMulticast>
     </General>
