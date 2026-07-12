@@ -12,7 +12,6 @@
         <NetworkInterface address="192.168.55.1"/>
       </Interfaces>
       <AllowMulticast>false</AllowMulticast>
-      <ParticipantIndex>auto</ParticipantIndex>
     </General>
     <Discovery>
       <Peers>
