@@ -16,6 +16,66 @@ The **navigation stack integration** is now complete: `map_manager`, `onboard_de
 
 ---
 
+## Simulation / hybrid link status (2026-07-14)
+
+The Mac ↔ Jetson hybrid link is now operating over the **wired USB Ethernet** subnet `192.168.55.x`:
+
+| Machine | IP |
+|---|---|
+| Mac (Gazebo simulator) | `192.168.55.14` |
+| Jetson (autonomy stack) | `192.168.55.7` |
+
+CycloneDDS is configured for **unicast discovery** with explicit peers. Key lessons from getting discovery stable:
+
+- **Do not bind to a specific interface/IP on the Mac.** Binding `192.168.55.14` or `en0` prevented publishers from being advertised. The Mac config uses `<AllowMulticast>false</AllowMulticast>` and a `<Discovery>` peer list only.
+- **Bind the Jetson to its wired IP** (`192.168.55.7`) in `<Interfaces>` so it does not pick the Wi-Fi interface.
+- Place `<ParticipantIndex>auto</ParticipantIndex>` under `<Discovery>`, not `<General>`, and raise `<MaxAutoParticipantIndex>` if many nodes are starting/stopping.
+
+`/workspaces/ros2_ws/cyclonedds.xml` (Jetson):
+
+```xml
+<?xml version="1.0"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="42">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="192.168.55.7"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>29</MaxAutoParticipantIndex>
+      <LeaseDuration>10s</LeaseDuration>
+      <Peers>
+        <Peer address="127.0.0.1"/>
+        <Peer address="192.168.55.14"/>
+        <Peer address="192.168.55.7"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
+```
+
+Image and IMU publishers in `gz_ros_bridge.cpp` were switched to `rclcpp::SensorDataQoS()` (`BEST_EFFORT`, `KEEP_LAST` depth 5). This eliminated CycloneDDS `retcode -5` / `OUT_OF_RESOURCES` errors that came from reliable retransmission under image load.
+
+Verified over the wired link:
+
+- `/camera/left/image_raw`: **30 Hz**, `rgb8`, 640×480, latency ~12 ms.
+- `/stereo/right/image_raw`: **30 Hz**.
+- `/imu/data_raw`: **~200 Hz**.
+
+The Jetson stack is started with:
+
+```bash
+source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
+ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py
+```
+
+Navigation goals are published to `/goal_pose` as a `geometry_msgs/PoseStamped` in the `map` frame. The navigation node first rotates in place until the robot yaw is within ~0.3 rad of the goal direction, then translates forward if the policy/safe-action layer allows. See the quick command reference below for the exact `ros2 topic pub` line.
+
+---
+
 ## Stereo Camera Hardware
 
 | Parameter | Value |
@@ -250,6 +310,9 @@ ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py
 source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
 ros2 launch stereo_depth_ros2 stereo_vio_navigation_sim.launch.py use_rviz:=false
 
+# --- Verify a topic is actually subscribed to (e.g. OpenVINS) ---
+ros2 topic info -v /camera/left/image_raw
+
 # --- Test topic bridging between Mac and Jetson ---
 # On Mac:  ros2 topic pub /test std_msgs/String 'data: hello'
 # On Jetson: ros2 topic echo /test
@@ -335,7 +398,7 @@ ros2 topic hz /imu/data_raw
 | `src/stereo_depth_ros2/config/openvins_sim/imu_chain.yaml` | Simulator-specific OpenVINS IMU chain (copied from real config) |
 | `src/stereo_depth_ros2/config/openvins_sim/estimator_config.yaml` | Simulator-specific OpenVINS estimator config (references `cam_chain.yaml` / `imu_chain.yaml` in `openvins_sim`) |
 | `scripts/setup_jetson_sim_env.sh` | Source this on the Jetson to set `ROS_DOMAIN_ID=42` and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` |
-| `cyclonedds.xml` | Template CycloneDDS unicast peer config if multicast discovery fails |
+| `cyclonedds.xml` | Current CycloneDDS unicast peer config for the wired Mac ↔ Jetson link (binds Jetson to `192.168.55.7`, peers with Mac `192.168.55.14` and loopback) |
 | `MAC_AGENT_INSTRUCTIONS.md` | Standalone instructions for the Mac-side agent setting up Gazebo + ROS 2 Humble + sensor bridges |
 | `SIMULATOR_HANDOFF.md` | Mac agent handoff document with topic contract, frame IDs, launch commands, and known limitations |
 | `src/stereo_depth_ros2/config/openvins/estimator_config.yaml` | OpenVINS estimator parameters |

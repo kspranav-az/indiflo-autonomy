@@ -36,7 +36,7 @@ def generate_launch_description():
         description='Launch YOLO detector (requires torchvision)'
     )
     use_rviz_arg = DeclareLaunchArgument(
-        'use_rviz', default_value='true',
+        'use_rviz', default_value='false',
         description='Launch RViz2'
     )
 

@@ -1,22 +1,16 @@
 #!/bin/bash
 # Source this script on the Jetson before running the Gazebo simulator stack.
-# It sets the ROS_DOMAIN_ID to match the Mac simulator.
-#
-# RMW note: the Mac simulator was built with CycloneDDS only. If
-# ros-humble-rmw-cyclonedds-cpp is installed on the Jetson, uncomment the
-# RMW_IMPLEMENTATION line below for best compatibility. If the install fails
-# with a 404, leave it commented and the Jetson will use its default RMW
-# (Fast-DDS). Cross-vendor DDS discovery may work for topic listing but can be
-# unreliable under heavy image traffic.
+# It sets the ROS_DOMAIN_ID to match the Mac simulator and selects CycloneDDS
+# so both machines use the same DDS vendor.
 
 export ROS_DOMAIN_ID=42
-
-# Clear any previously-set RMW_IMPLEMENTATION so this script always starts
-# from the Jetson default unless explicitly uncommented below.
-unset RMW_IMPLEMENTATION
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-# CycloneDDS peer config for wired Mac <-> Jetson link.
+# CycloneDDS config: unicast peer discovery on domain 42 for the wired USB
+# Ethernet link to the Mac simulator. The Jetson side binds to its wired
+# interface (192.168.55.7) so it does not accidentally use Wi-Fi, l4tbr0, or
+# docker0. Peers include loopback, the Mac (192.168.55.14), and the Jetson
+# itself so local nodes can discover each other. Multicast SPDP is disabled.
 export CYCLONEDDS_URI=file:///workspaces/ros2_ws/cyclonedds.xml
 
 # Source local rmw_cyclonedds_cpp build if available (apt package is 404).

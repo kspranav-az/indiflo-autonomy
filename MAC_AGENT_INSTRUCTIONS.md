@@ -157,13 +157,102 @@ For a more robust fallback, write a small C++ Gazebo system plugin using `rclcpp
 
 ## Step 9 — Network setup
 
-Connect macOS and Jetson to the same network. On both machines:
+The Mac and Jetson must share a network and use the same DDS vendor / domain.
+The current setup uses the **wired USB Ethernet** subnet `192.168.55.x`:
+
+| Machine | IP |
+|---|---|
+| Mac (simulator) | `192.168.55.14` |
+| Jetson (autonomy stack) | `192.168.55.7` |
+
+If you switch back to Wi-Fi, replace the IP addresses below with the Wi-Fi
+addresses. The steps are otherwise identical.
+
+### 9.1 Use CycloneDDS on both sides
+
+The simulator build on the Mac uses `rmw_cyclonedds_cpp`; the Jetson must use
+the same RMW implementation.
+
+On the Mac, `setup_env.sh` should already export:
 
 ```bash
 export ROS_DOMAIN_ID=42
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export CYCLONEDDS_URI=file:///Users/pranav/cyclonedds.xml
 ```
 
-Test connectivity:
+On the Jetson, source:
+
+```bash
+source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
+```
+
+### 9.2 CycloneDDS unicast peer config
+
+Multicast SPDP is often blocked or unreliable across subnets / USB Ethernet, so
+use explicit unicast peers. Create `~/cyclonedds.xml` on the Mac and
+`/workspaces/ros2_ws/cyclonedds.xml` on the Jetson.
+
+**Important lessons from getting this stable:**
+
+- **Do not bind to a specific interface or IP on the Mac.** Binding to
+  `192.168.55.14` or `en0` prevented publishers from being advertised.
+- **Do bind the Jetson to its wired IP** (`192.168.55.7`) so it does not pick
+  the Wi-Fi interface.
+- `<ParticipantIndex>auto</ParticipantIndex>` belongs under `<Discovery>`, not
+  `<General>`.
+
+Mac `~/cyclonedds.xml`:
+
+```xml
+<?xml version="1.0"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="42">
+    <General>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>29</MaxAutoParticipantIndex>
+      <LeaseDuration>10s</LeaseDuration>
+      <Peers>
+        <Peer address="192.168.55.14"/>
+        <Peer address="192.168.55.7"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
+```
+
+Jetson `/workspaces/ros2_ws/cyclonedds.xml`:
+
+```xml
+<?xml version="1.0"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="42">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="192.168.55.7"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>29</MaxAutoParticipantIndex>
+      <LeaseDuration>10s</LeaseDuration>
+      <Peers>
+        <Peer address="127.0.0.1"/>
+        <Peer address="192.168.55.14"/>
+        <Peer address="192.168.55.7"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
+```
+
+### 9.3 Test connectivity
+
+After restarting both sides (so the new CycloneDDS config is read):
 
 ```bash
 # On macOS
@@ -173,7 +262,7 @@ ros2 topic pub /test std_msgs/String 'data: hello'
 ros2 topic echo /test
 ```
 
-If multicast fails, configure CycloneDDS with explicit peers.
+If the echo works, DDS discovery is healthy.
 
 ## Step 10 — Run the simulator
 
@@ -191,6 +280,22 @@ ros2 topic list | grep -E 'camera/left|stereo/right|imu/data_raw|stereo/depth|cm
 ros2 topic hz /camera/left/image_raw
 ros2 topic hz /imu/data_raw
 ros2 topic hz /stereo/depth
+```
+
+Check that the image and IMU publishers use `BEST_EFFORT` QoS (this avoids
+CycloneDDS `OUT_OF_RESOURCES` errors under image load):
+
+```bash
+ros2 topic info -v /camera/left/image_raw
+ros2 topic info -v /imu/data_raw
+```
+
+Expected QoS:
+
+```text
+Reliability: BEST_EFFORT
+History (Depth): KEEP_LAST (5)
+Durability: VOLATILE
 ```
 
 ## Deliverables back to Jetson-side Kimi

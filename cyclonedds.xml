@@ -1,22 +1,21 @@
-<?xml version="1.0"?>
-<!--
-  CycloneDDS configuration for Jetson ↔ Mac wired simulator link.
-  Multicast discovery is disabled because the point-to-point USB/Ethernet
-  link between Mac and Jetson does not forward DDS SPDP multicast. Discovery
-  uses explicit unicast peers only.
--->
-<CycloneDDS xmlns="https://cdds.io/config">
-  <Domain id="42">
-    <General>
-      <Interfaces>
-        <NetworkInterface address="192.168.55.1"/>
-      </Interfaces>
-      <AllowMulticast>false</AllowMulticast>
-    </General>
-    <Discovery>
-      <Peers>
-        <Peer address="192.168.55.100"/>
-      </Peers>
-    </Discovery>
-  </Domain>
-</CycloneDDS>
+ <?xml version="1.0"?>                                                                                                                                                                                    
+     <CycloneDDS xmlns="https://cdds.io/config">                                                                                                                                                              
+       <Domain id="42">                                                                                                                                                                                       
+         <General>                                                                                                                                                                                            
+           <Interfaces>                                                                                                                                                                                       
+             <NetworkInterface address="192.168.55.7"/>                                                                                                                                                       
+           </Interfaces>                                                                                                                                                                                      
+           <AllowMulticast>false</AllowMulticast>                                                                                                                                                             
+         </General>                                                                                                                                                                                           
+         <Discovery>                                                                                                                                                                                          
+           <ParticipantIndex>auto</ParticipantIndex>                                                                                                                                                          
+           <MaxAutoParticipantIndex>29</MaxAutoParticipantIndex>                                                                                                                                              
+           <LeaseDuration>10s</LeaseDuration>                                                                                                                                                                 
+           <Peers>                                                                                                                                                                                            
+             <Peer address="127.0.0.1"/>                                                                                                                                                                      
+             <Peer address="192.168.55.14"/>                                                                                                                                                                  
+             <Peer address="192.168.55.7"/>                                                                                                                                                                   
+           </Peers>                                                                                                                                                                                           
+         </Discovery>                                                                                                                                                                                         
+       </Domain>                                                                                                                                                                                              
+     </CycloneDDS>        

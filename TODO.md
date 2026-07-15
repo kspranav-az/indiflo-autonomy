@@ -224,11 +224,11 @@ Test:
 
 After Kalibr tuning is verified, the remaining integration items are:
 
-1. **Gazebo simulation setup (2026-07-09 — in progress)**
+1. **Gazebo simulation link (2026-07-14 — link established, end-to-end VIO/nav pending)**
    - Hybrid simulator: Gazebo runs on a Mac, VIO + navigation runs on the Jetson.
-   - Mac-side instructions: `MAC_AGENT_INSTRUCTIONS.md`.
-   - Jetson-side files: `stereo_vio_navigation_sim.launch.py`, `config/openvins_sim/`.
-   - Next: Mac agent completes Gazebo world + robot + sensor plugins; then run the hybrid test.
+   - Mac ↔ Jetson DDS now works over wired USB Ethernet (`192.168.55.14` Mac, `192.168.55.7` Jetson) with unicast CycloneDDS and `BEST_EFFORT` image/IMU QoS.
+   - Verified sensor rates: `/camera/left/image_raw` and `/stereo/right/image_raw` at 30 Hz, `/imu/data_raw` at ~200 Hz.
+   - Next: launch `stereo_vio_navigation_sim.launch.py` on the Jetson and verify OpenVINS initializes, `/unitree_go2/odom` publishes, and navigation responds to `/goal_pose`.
 
 2. **Long-duration robustness test**
    - Run `stereo_vio_navigation.launch.py` for 10–20 minutes of normal use.
@@ -263,9 +263,9 @@ After Kalibr tuning is verified, the remaining integration items are:
 - Need an AprilGrid target printed.
 - Need access to an x86 PC/VM with Docker.
 - **torchvision is not available on the Jetson torch build**, so the YOLO detector node cannot start. It is disabled by default (`use_yolo:=false`) in `stereo_vio_navigation.launch.py`. To enable YOLO later, install a Jetson-compatible torchvision built against `torch 2.5.0a0+872d972e41.nv24.08`, then launch with `use_yolo:=true`.
-- **torchrl/einops/hydra-core are now installed and `navigation_node` starts successfully**, but closed-loop behavior needs validation: the robot currently spins in place to align with the goal before translating. Need to confirm it transitions to forward motion on a real, unblocked robot. The Gazebo simulation (once ready) will let us validate this without hardware risk.
-- **Gazebo simulation is blocked on the Mac agent** completing ROS 2 Humble + Gazebo Harmonic + robot/world + sensor bridge setup per `MAC_AGENT_INSTRUCTIONS.md`.
+- **torchrl/einops/hydra-core are installed and `navigation_node` starts successfully**, but closed-loop behavior still needs validation in the simulator. The robot is expected to spin in place to align with the goal before translating. The Gazebo simulation link is ready; the next step is the first end-to-end Jetson launch.
+- **Gazebo simulation link is established**, but OpenVINS initialization and navigation response to `/goal_pose` have not yet been verified in the hybrid run. Launch `stereo_vio_navigation_sim.launch.py` and check `/unitree_go2/odom`, `/vio/status`, and `/unitree_go2/cmd_vel`.
 
 ---
 
-Last updated: 2026-07-09 (simulation setup files added, Mac agent instructions created)
+Last updated: 2026-07-14 (wired DDS link working, documentation updated)

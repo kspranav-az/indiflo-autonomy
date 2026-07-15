@@ -1,0 +1,37 @@
+Checkerboard for A4 stereo calibration
+========================================
+Internal corner rows: 8
+Internal corner cols: 5
+Square size: 29.5 mm  <-- MEASURE THIS WITH A RULER AND UPDATE IF NEEDED
+
+The calibration tools expect arguments as:  boardW(cols)  boardH(rows)  square_mm
+So the commands below use:  5 8 29.5
+
+After printing at 100% scale (no scaling/fit-to-page):
+1. Attach the printed page to a FLAT, RIGID backing (cardboard, acrylic, foam board).
+2. Verify the board is not curved, wrinkled, or glossy (matte print preferred).
+3. Measure the side length of one square with a ruler and update SQUARE_MM below.
+
+Capture:
+--------
+cd /workspaces/ros2_ws/src/stereo_test/build
+./calibrate_stereo 640 480 30 5 8 29.5
+
+In the GUI:
+  - Show the board to both cameras at the SAME time.
+  - Press SPACE when both left and right views show green corners.
+  - Capture 15-25 pairs with the board filling ~1/3 to 1/2 of the image.
+  - Vary distance, angle, and position across the frame (edges/corners too).
+  - Avoid motion blur; hold steady when saving.
+  - Press 'C' to run calibration after capturing enough pairs.
+
+Offline calibration (if you already saved images to calib_images/):
+--------------------------------------------------------------------
+cd /workspaces/ros2_ws/src/stereo_test/build
+./calibrate_offline 640 480 5 8 29.5
+
+Copy results into the ROS / OpenVINS configs:
+---------------------------------------------
+cp stereo_calib.yml ../../stereo_depth_ros2/cfg/stereo_calib.yml
+# Also hand-update src/stereo_depth_ros2/config/openvins/cam_chain.yaml
+# with the new intrinsics, distortion, and cam0->cam1 transform from stereo_calib.yml.

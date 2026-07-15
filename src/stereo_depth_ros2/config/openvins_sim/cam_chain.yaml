@@ -22,8 +22,8 @@ cam0:
   camera_model: pinhole
   distortion_model: radtan
   distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
-  intrinsics: [415.10088390587896, 420.3083743120701, 355.0629519886139, 221.24727741856475]
-  resolution: [640, 480]
+  intrinsics: [207.55044195293948, 210.15418715603505, 177.53147599430695, 110.62363870928238]
+  resolution: [320, 240]
   rostopic: /camera/left/image_raw
   timeshift_cam_imu: 0.0
 
@@ -43,7 +43,7 @@ cam1:
   camera_model: pinhole
   distortion_model: radtan
   distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
-  intrinsics: [418.7519205086613, 419.1075166680335, 316.5721852132701, 264.4844836729405]
-  resolution: [640, 480]
+  intrinsics: [209.37596025433065, 209.55375833401675, 158.28609260663505, 132.24224183647025]
+  resolution: [320, 240]
   rostopic: /stereo/right/image_raw
   timeshift_cam_imu: 0.0

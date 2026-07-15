@@ -173,10 +173,19 @@ source /workspaces/ros2_ws/scripts/setup_jetson_sim_env.sh
 
 ### 7.2 Network checklist
 
-1. Mac and Jetson on the same subnet (or routed with UDP multicast enabled).
-2. Same `ROS_DOMAIN_ID` on both machines.
+The current working link uses the **wired USB Ethernet** subnet `192.168.55.x`:
+
+| Machine | IP |
+|---|---|
+| Mac (simulator) | `192.168.55.14` |
+| Jetson (autonomy stack) | `192.168.55.7` |
+
+1. Mac and Jetson on the same subnet (or explicit peers listed if routed).
+2. Same `ROS_DOMAIN_ID=42` on both machines.
 3. Same `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` on both machines.
-4. No firewall blocking DDS discovery / traffic.
+4. `CYCLONEDDS_URI` exported on both sides (see 7.4).
+5. No firewall blocking UDP DDS discovery / traffic between the peers.
+6. Both sides restarted after any CycloneDDS XML change (the config is read at participant creation).
 
 ### 7.3 Verify connection
 
@@ -206,32 +215,69 @@ ros2 topic pub /unitree_go2/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, 
 
 The simulated robot should move in Gazebo.
 
-### 7.4 If DDS discovery is flaky over Wi-Fi
+### 7.4 CycloneDDS unicast config (current working setup)
 
-Create a CycloneDDS config file on both machines, e.g. `cyclonedds.xml`:
+Multicast SPDP is disabled; both sides discover each other through explicit
+peers. The Mac must **not** be bound to a specific interface or IP — doing so
+prevented its publishers from being advertised. The Jetson is bound to its
+wired IP so it does not accidentally use Wi-Fi, `l4tbr0`, or `docker0`.
+
+Mac `~/cyclonedds.xml`:
 
 ```xml
 <?xml version="1.0"?>
 <CycloneDDS xmlns="https://cdds.io/config">
   <Domain id="42">
     <General>
-      <NetworkInterfaceAddress>auto</NetworkInterfaceAddress>
-      <AllowMulticast>true</AllowMulticast>
+      <AllowMulticast>false</AllowMulticast>
     </General>
     <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>29</MaxAutoParticipantIndex>
+      <LeaseDuration>10s</LeaseDuration>
       <Peers>
-        <Peer address="192.168.1.10"/>   <!-- Mac IP -->
-        <Peer address="192.168.1.20"/>   <!-- Jetson IP -->
+        <Peer address="192.168.55.14"/>
+        <Peer address="192.168.55.7"/>
       </Peers>
     </Discovery>
   </Domain>
 </CycloneDDS>
 ```
 
-Then export:
+Jetson `/workspaces/ros2_ws/cyclonedds.xml`:
+
+```xml
+<?xml version="1.0"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="42">
+    <General>
+      <Interfaces>
+        <NetworkInterface address="192.168.55.7"/>
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>29</MaxAutoParticipantIndex>
+      <LeaseDuration>10s</LeaseDuration>
+      <Peers>
+        <Peer address="127.0.0.1"/>
+        <Peer address="192.168.55.14"/>
+        <Peer address="192.168.55.7"/>
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
+```
+
+Export the config on each side:
 
 ```bash
-export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
+# Mac
+export CYCLONEDDS_URI=file:///Users/pranav/cyclonedds.xml
+
+# Jetson
+export CYCLONEDDS_URI=file:///workspaces/ros2_ws/cyclonedds.xml
 ```
 
 ---
@@ -258,7 +304,7 @@ Based on the Mac model poses (all sensor links coincident with zero rotation), t
 - `src/stereo_depth_ros2/cfg/map_param_sim.yaml` — `body_to_depth_sensor` set to **identity**.
 - `src/stereo_depth_ros2/launch/stereo_vio_navigation_sim.launch.py` — uses the sim OpenVINS config and sim map config.
 - `scripts/setup_jetson_sim_env.sh` — sets `ROS_DOMAIN_ID=42` and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`.
-- `cyclonedds.xml` — template for unicast peer fallback if multicast fails.
+- `cyclonedds.xml` — current unicast peer config for the wired Mac ↔ Jetson link.
 
 ---
 
@@ -267,7 +313,7 @@ Based on the Mac model poses (all sensor links coincident with zero rotation), t
 1. **Shell requirement:** `setup_env.sh` must be sourced from `bash`, not `zsh`. The colcon-generated `setup.bash` files rely on `${BASH_SOURCE[0]}` and break under zsh.
 2. **macOS Gazebo GUI:** Gazebo on macOS cannot run server and GUI in the same process; the launch file runs them separately. Use `gui:=false` for headless operation.
 3. **No real-time guarantees:** Gazebo `real_time_factor` is set to 1, but actual timing depends on Mac load.
-4. **Image bandwidth:** Three image streams over Wi-Fi can saturate the link. Consider throttling or reducing resolution for remote Jetson development.
+4. **Image bandwidth:** Three image streams over Wi-Fi can saturate the link; use the wired USB Ethernet link (`192.168.55.x`) for development. Consider throttling or reducing resolution if only Wi-Fi is available.
 5. **Covariance:** IMU covariance fields are zero because Gazebo’s IMU message does not provide them.
 6. **Skipped vendor packages:** `mimick_vendor` and `uncrustify_vendor` warnings during env setup are harmless.
 
