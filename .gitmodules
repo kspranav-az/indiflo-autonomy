@@ -1,0 +1,6 @@
+[submodule "src/ros2"]
+	path = src/ros2
+	url = git@github.com:kspranav-az/indiflo-ros2-core.git
+[submodule "src/icm20948_ros2"]
+	path = src/icm20948_ros2
+	url = git@github.com:kspranav-az/indiflo-icm20948-driver-.git
