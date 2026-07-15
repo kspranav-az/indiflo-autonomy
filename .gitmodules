@@ -4,3 +4,15 @@
 [submodule "src/icm20948_ros2"]
 	path = src/icm20948_ros2
 	url = git@github.com:kspranav-az/indiflo-icm20948-driver-.git
+[submodule "src/open_vins"]
+	path = src/open_vins
+	url = git@github.com:kspranav-az/open_vins.git
+	branch = indiflo-qos
+[submodule "src/ceres-solver"]
+	path = src/ceres-solver
+	url = git@github.com:kspranav-az/ceres-solver.git
+	branch = master
+[submodule "src/midas_trt_nvargus"]
+	path = src/midas_trt_nvargus
+	url = git@github.com:kspranav-az/midas_trt_nvargus.git
+	branch = main
